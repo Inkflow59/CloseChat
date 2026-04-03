@@ -1,0 +1,45 @@
+{
+  "name": "closechat",
+  "version": "1.0.0",
+  "description": "",
+  "main": "src/main/electron.js",
+  "scripts": {
+    "dev": "concurrently -k \"npm:dev:vite\" \"npm:dev:electron\"",
+    "dev:vite": "cross-env NODE_ENV=development vite --config vite.config.ts --port 5173",
+    "dev:electron": "cross-env NODE_ENV=development ELECTRON_RENDERER_URL=http://localhost:5173 electron .",
+    "build:renderer": "vite build --config vite.config.ts",
+    "build": "npm run build:renderer",
+    "start": "cross-env NODE_ENV=production electron ."
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Inkflow59/CloseChat.git"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "type": "commonjs",
+  "bugs": {
+    "url": "https://github.com/Inkflow59/CloseChat/issues"
+  },
+  "homepage": "https://github.com/Inkflow59/CloseChat#readme",
+  "dependencies": {
+    "react": "^19.2.4",
+    "react-dom": "^19.2.4"
+  },
+  "devDependencies": {
+    "@tailwindcss/postcss": "^4.2.2",
+    "@types/node": "^25.5.0",
+    "@types/react": "^19.2.14",
+    "@types/react-dom": "^19.2.3",
+    "@vitejs/plugin-react": "^6.0.1",
+    "autoprefixer": "^10.4.27",
+    "concurrently": "^9.2.1",
+    "cross-env": "^10.1.0",
+    "electron": "^41.1.1",
+    "postcss": "^8.5.8",
+    "tailwindcss": "^4.2.2",
+    "typescript": "^6.0.2",
+    "vite": "^8.0.3"
+  }
+}

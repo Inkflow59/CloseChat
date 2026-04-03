@@ -1,2 +1,14 @@
 # Fichier PNG de la maquette
-maquette.png
+assets/maquette.png
+
+# Node modules
+node_modules
+
+# Builds / caches
+dist/
+.vite/
+
+# Env / logs
+.env
+.env.*
+*.log
