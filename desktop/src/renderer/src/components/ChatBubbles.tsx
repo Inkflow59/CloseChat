@@ -13,14 +13,23 @@ type Props = {
 
 export default function ChatBubbles({ items }: Props) {
   return (
-    <Stack spacing={3}>
+    <Stack
+      spacing={3}
+      sx={{
+        width: '100%',
+        maxWidth: 420,
+        mx: 'auto',
+        alignItems: 'stretch',
+      }}
+    >
       {items.map((item, index) => (
         <Card
           key={item.id}
           elevation={4}
           sx={(theme) => ({
-            maxWidth: 360,
-            ml: index === 1 ? 8 : 0,
+            maxWidth: { xs: '78vw', sm: 360 },
+            width: 'fit-content',
+            alignSelf: index % 2 === 0 ? 'flex-start' : 'flex-end',
             borderRadius: 3,
             bgcolor: item.variant === 'rose' ? '#f2d9d3' : '#ffffff',
             boxShadow: '0 18px 40px rgba(15, 23, 42, 0.12)',
@@ -43,9 +52,10 @@ export default function ChatBubbles({ items }: Props) {
             <Typography
               variant="subtitle1"
               sx={{
-                fontFamily: '"Gloria Hallelujah", system-ui, sans-serif',
-                fontSize: 18,
+                fontFamily: '"Caveat", system-ui, sans-serif',
+                fontSize: 20,
                 mb: 0.5,
+                wordBreak: 'break-word',
               }}
             >
               {item.text}
