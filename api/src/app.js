@@ -1,15 +1,27 @@
 const express = require('express');
 const cors = require('cors');
+const crashRoutes = require('./crashRoutes');
+const authRoutes = require('./authRoutes');
 
 const app = express();
 
 app.use(cors());
-app.use(express.json());
+app.use(
+  express.json({
+    limit: '10mb',
+  }),
+);
 
-// Health check for the future API
+// Health check
 app.get('/health', (req, res) => {
   res.json({ status: 'ok' });
 });
+
+// Auth centralisée (comptes CloseChat)
+app.use('/auth', authRoutes);
+
+// Crash reporter (self-hosted)
+app.use(crashRoutes);
 
 // Basic error handler
 app.use((err, req, res, next) => {

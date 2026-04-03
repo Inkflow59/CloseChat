@@ -1,0 +1,32 @@
+-- Schema minimal pour CloseChat (comptes + crash reporter self-hosted)
+-- Utilise pgcrypto pour gen_random_uuid()
+
+CREATE EXTENSION IF NOT EXISTS pgcrypto;
+
+CREATE TABLE IF NOT EXISTS users (
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  email text UNIQUE,
+  username text UNIQUE,
+  password_hash text NOT NULL,
+  created_at timestamptz NOT NULL DEFAULT now(),
+  updated_at timestamptz NOT NULL DEFAULT now()
+);
+
+-- Crash reports envoyés par l'app Electron via electron.crashReporter
+CREATE TABLE IF NOT EXISTS crash_reports (
+  id bigserial PRIMARY KEY,
+  created_at timestamptz NOT NULL DEFAULT now(),
+  user_id uuid NULL REFERENCES users(id) ON DELETE SET NULL,
+  app_version text NULL,
+  platform text NULL,
+  exception text NULL,
+  stack text NULL,
+  crash_id text NULL,
+  raw jsonb NOT NULL DEFAULT '{}'::jsonb
+);
+
+CREATE INDEX IF NOT EXISTS idx_crash_reports_created_at
+  ON crash_reports (created_at);
+
+CREATE INDEX IF NOT EXISTS idx_crash_reports_user_id
+  ON crash_reports (user_id);

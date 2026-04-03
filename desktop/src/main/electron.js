@@ -1,5 +1,42 @@
-const { app, BrowserWindow } = require('electron')
+const { app, BrowserWindow, crashReporter, ipcMain } = require('electron')
 const path = require('path')
+
+const enableCrashReporting = process.env.CRASH_REPORTING_ENABLED !== 'false'
+const crashSubmitURL =
+  process.env.CRASH_REPORT_SUBMIT_URL || 'http://localhost:3001/crash'
+
+const fs = require('fs')
+const jwtPublicKey =
+  process.env.JWT_PUBLIC_KEY ||
+  (() => {
+    try {
+      const jwtPath = path.join(__dirname, '..', '..', '..', 'secrets', 'jwt_public.pem')
+      if (!fs.existsSync(jwtPath)) return ''
+      return fs.readFileSync(jwtPath, 'utf8')
+    } catch (_) {
+      return ''
+    }
+  })()
+
+let mainWindow = null
+let lanServer = null
+let lanRooms = new Map() // roomName -> { passwordHashHex: string|null, clients: Set<WebSocket>, createdAt }
+let lanServerPort = null
+
+let lanClientSocket = null
+let lanClientRoom = null
+
+if (enableCrashReporting) {
+  // Envoie automatique des crashs au backend self-hosted.
+  crashReporter.start({
+    submitURL: crashSubmitURL,
+    uploadToServer: true,
+    extra: {
+      appVersion: app.getVersion(),
+      platform: process.platform,
+    },
+  })
+}
 
 async function waitForDevServer(url, timeoutMs = 20000, intervalMs = 250) {
   const startedAt = Date.now()
@@ -21,11 +58,12 @@ function createWindow({ devUrl, isDev }) {
     width: 1100,
     height: 720,
     webPreferences: {
-      // Pas de preload pour ce scaffold initial
+      preload: path.join(__dirname, 'preload.js'),
       nodeIntegration: false,
       contextIsolation: true,
     },
   })
+  mainWindow = win
 
   if (isDev) {
     win.loadURL(devUrl)
@@ -50,6 +88,253 @@ app.whenReady().then(async () => {
   app.on('activate', function () {
     if (BrowserWindow.getAllWindows().length === 0) createWindow()
   })
+})
+
+function sha256Hex(input) {
+  const { createHash } = require('crypto')
+  return createHash('sha256').update(String(input)).digest('hex')
+}
+
+function verifyJWT(token) {
+  const jwt = require('jsonwebtoken')
+  if (!jwtPublicKey) {
+    throw new Error('JWT_PUBLIC_KEY manquant (pour le LAN).')
+  }
+  return jwt.verify(token, jwtPublicKey, { algorithms: ['RS256'] })
+}
+
+function broadcastToRoom(room, payload) {
+  const roomState = lanRooms.get(room)
+  if (!roomState) return
+  const msg = JSON.stringify(payload)
+  for (const ws of roomState.clients) {
+    // ws.readyState: 1 == OPEN (constante statique WebSocket.OPEN).
+    if (ws.readyState === 1) ws.send(msg)
+  }
+}
+
+function trySendToRenderer(payload) {
+  if (!mainWindow) return
+  mainWindow.webContents.send('lan:message', payload)
+}
+
+ipcMain.handle('lan:hostStart', async (event, args = {}) => {
+  const wsLib = require('ws')
+  const { port } = args
+  const listenPort = Number(port) || 5050
+
+  if (!jwtPublicKey) {
+    // Evite un “succès” trompeur avec une vérification qui ne ferait jamais le lien.
+    throw new Error('JWT_PUBLIC_KEY manquant : configure une clé publique persistante.')
+  }
+
+  // Si un serveur existe déjà, on le réutilise.
+  if (lanServer) return { ok: true, port: lanServerPort }
+
+  lanServerPort = listenPort
+  lanServer = new wsLib.Server({ port: listenPort })
+  lanRooms = new Map()
+
+  lanServer.on('connection', (ws) => {
+    ws.on('message', (data) => {
+      let msg
+      try {
+        msg = JSON.parse(data.toString('utf8'))
+      } catch (_) {
+        ws.send(JSON.stringify({ type: 'error', error: 'Invalid JSON' }))
+        return
+      }
+
+      const { type } = msg || {}
+
+      if (type === 'join_room') {
+        try {
+          const { room, token, roomPassword } = msg
+          const payload = verifyJWT(token)
+          const username = payload.username || payload.sub
+
+          if (!room) return ws.send(JSON.stringify({ type: 'join_room_ack', ok: false, error: 'Missing room' }))
+
+          if (!lanRooms.has(room)) {
+            return ws.send(
+              JSON.stringify({ type: 'join_room_ack', ok: false, error: 'Room not found' }),
+            )
+          }
+
+          const roomState = lanRooms.get(room)
+          if (roomState.passwordHashHex) {
+            if (!roomPassword) {
+              return ws.send(
+                JSON.stringify({ type: 'join_room_ack', ok: false, error: 'Password required' }),
+              )
+            }
+            const candidate = sha256Hex(roomPassword)
+            if (candidate !== roomState.passwordHashHex) {
+              return ws.send(
+                JSON.stringify({ type: 'join_room_ack', ok: false, error: 'Wrong password' }),
+              )
+            }
+          }
+
+          roomState.clients.add(ws)
+          ws.__lanRoom = room
+          ws.__lanUser = { userId: payload.sub, username }
+
+          ws.send(JSON.stringify({ type: 'join_room_ack', ok: true, room }))
+
+          broadcastToRoom(room, {
+            type: 'presence',
+            room,
+            action: 'join',
+            user: { userId: payload.sub, username },
+            at: new Date().toISOString(),
+          })
+        } catch (err) {
+          ws.send(JSON.stringify({ type: 'join_room_ack', ok: false, error: err?.message || 'Unauthorized' }))
+        }
+        return
+      }
+
+      if (type === 'send_message') {
+        try {
+          const { room, token, message } = msg
+          const payload = verifyJWT(token)
+          const username = payload.username || payload.sub
+
+          if (!room || !message) {
+            return ws.send(JSON.stringify({ type: 'send_message_ack', ok: false, error: 'Missing room/message' }))
+          }
+          const roomState = lanRooms.get(room)
+          if (!roomState || !roomState.clients.has(ws)) {
+            return ws.send(JSON.stringify({ type: 'send_message_ack', ok: false, error: 'Not joined to room' }))
+          }
+
+          const m = String(message)
+          broadcastToRoom(room, {
+            type: 'message',
+            room,
+            from: { userId: payload.sub, username },
+            message: m,
+            at: new Date().toISOString(),
+          })
+
+          ws.send(JSON.stringify({ type: 'send_message_ack', ok: true }))
+        } catch (err) {
+          ws.send(JSON.stringify({ type: 'send_message_ack', ok: false, error: err?.message || 'Unauthorized' }))
+        }
+        return
+      }
+
+      ws.send(JSON.stringify({ type: 'error', error: `Unknown type: ${type}` }))
+    })
+
+    ws.on('close', () => {
+      const room = ws.__lanRoom
+      if (!room) return
+      const roomState = lanRooms.get(room)
+      if (!roomState) return
+      roomState.clients.delete(ws)
+      broadcastToRoom(room, {
+        type: 'presence',
+        room,
+        action: 'leave',
+        user: ws.__lanUser || null,
+        at: new Date().toISOString(),
+      })
+    })
+  })
+
+  return { ok: true, port: lanServerPort }
+})
+
+ipcMain.handle('lan:hostCreateRoom', async (event, args = {}) => {
+  const { room, roomPassword } = args
+  if (!room) throw new Error('Missing room')
+
+  const passwordHashHex = roomPassword ? sha256Hex(roomPassword) : null
+  lanRooms.set(room, {
+    passwordHashHex,
+    clients: new Set(),
+    createdAt: new Date().toISOString(),
+  })
+
+  return { ok: true, room, protected: Boolean(passwordHashHex) }
+})
+
+ipcMain.handle('lan:clientJoin', async (event, args = {}) => {
+  const wsLib = require('ws')
+  const { url, room, token, roomPassword } = args
+
+  if (!url || !room || !token) {
+    throw new Error('clientJoin requires { url, room, token }')
+  }
+
+  lanClientRoom = room
+
+  if (lanClientSocket) {
+    try {
+      lanClientSocket.close()
+    } catch (_) {}
+    lanClientSocket = null
+  }
+
+  const socket = new wsLib.WebSocket(url)
+  lanClientSocket = socket
+
+  return await new Promise((resolve, reject) => {
+    socket.on('open', () => {
+      socket.send(
+        JSON.stringify({
+          type: 'join_room',
+          room,
+          token,
+          roomPassword: roomPassword || null,
+        }),
+      )
+    })
+
+    socket.on('message', (data) => {
+      let msg
+      try {
+        msg = JSON.parse(data.toString('utf8'))
+      } catch (_) {
+        return
+      }
+
+      if (msg.type === 'join_room_ack') {
+        if (!msg.ok) return reject(new Error(msg.error || 'join failed'))
+        trySendToRenderer(msg)
+        return resolve({ ok: true, room })
+      }
+
+      // events de diffusion
+      trySendToRenderer(msg)
+    })
+
+    socket.on('error', (err) => {
+      reject(err)
+    })
+  })
+})
+
+ipcMain.handle('lan:clientSendMessage', async (event, args = {}) => {
+  const { message, room, token } = args
+  if (!lanClientSocket || lanClientSocket.readyState !== 1) {
+    throw new Error('Not connected to a LAN host.')
+  }
+  const r = room || lanClientRoom
+  if (!r || !message || !token) throw new Error('Missing { room/message/token }')
+
+  lanClientSocket.send(
+    JSON.stringify({
+      type: 'send_message',
+      room: r,
+      token,
+      message,
+    }),
+  )
+
+  return { ok: true }
 })
 
 app.on('window-all-closed', function () {

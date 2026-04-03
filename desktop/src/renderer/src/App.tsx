@@ -1,20 +1,21 @@
+import { useState } from 'react'
+import type { NavigateFn } from './pages/HomePage'
+import HomePage from './pages/HomePage'
+
 export default function App() {
+  type Route = 'home'
+
+  const [route, setRoute] = useState<Route>('home')
+
+  const navigate: NavigateFn = (next) => {
+    setRoute(next)
+  }
+
+  if (route === 'home') {
+    return <HomePage navigate={navigate} />
+  }
+
   return (
-    <div className="min-h-screen bg-slate-950 text-slate-100 flex items-center justify-center p-6">
-      <div className="max-w-md w-full bg-slate-900 border border-slate-800 rounded-xl p-6 shadow">
-        <h1 className="text-2xl font-bold mb-2">CloseChat</h1>
-        <p className="text-slate-300 mb-4">
-          Electron + React + TailwindCSS est prêt.
-        </p>
-        <button
-          type="button"
-          className="px-4 py-2 rounded bg-indigo-600 hover:bg-indigo-500 transition"
-          onClick={() => window.alert('UI OK')}
-        >
-          Tester
-        </button>
-      </div>
-    </div>
+    <div className="min-h-screen bg-[#fdf7f2]" />
   )
 }
-

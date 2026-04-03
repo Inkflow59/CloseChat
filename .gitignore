@@ -12,3 +12,7 @@ dist/
 .env
 .env.*
 *.log
+
+# Secrets (JWT, crash dumps, etc.)
+secrets/
+*.pem
