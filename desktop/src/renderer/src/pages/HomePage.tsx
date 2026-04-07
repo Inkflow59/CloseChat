@@ -1,7 +1,7 @@
 import { Box, Button, Stack, Typography } from '@mui/material'
 import ChatBubbles from '../components/ChatBubbles'
 
-type Route = 'home'
+type Route = 'home' | 'about'
 
 export type NavigateFn = (route: Route) => void
 
@@ -151,7 +151,7 @@ export default function HomePage({ navigate }: Props) {
 
             <Button
               variant="outlined"
-              onClick={() => navigate('home')}
+              onClick={() => navigate('about')}
               sx={{
                 fontFamily: '"Caveat", system-ui, sans-serif',
                 textTransform: 'none',

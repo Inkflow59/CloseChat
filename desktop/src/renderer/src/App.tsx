@@ -1,9 +1,10 @@
 import { useState } from 'react'
 import type { NavigateFn } from './pages/HomePage'
 import HomePage from './pages/HomePage'
+import AboutPage from './pages/AboutPage'
 
 export default function App() {
-  type Route = 'home'
+  type Route = 'home' | 'about'
 
   const [route, setRoute] = useState<Route>('home')
 
@@ -15,7 +16,5 @@ export default function App() {
     return <HomePage navigate={navigate} />
   }
 
-  return (
-    <div className="min-h-screen bg-[#fdf7f2]" />
-  )
+  return <AboutPage navigate={navigate} />
 }
