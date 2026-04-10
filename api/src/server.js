@@ -5,7 +5,7 @@ const app = require('./app');
 const { initDb, closePool, pool } = require('./db');
 const { startCrashCleanupJob } = require('./crashCleanup');
 
-const PORT = Number(process.env.PORT) || 3001;
+const PORT = Number(process.env.PORT) || 6767;
 
 const server = http.createServer(app);
 

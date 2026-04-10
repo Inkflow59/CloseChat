@@ -1,0 +1,3 @@
+# Reconnaissance des fichiers SQL
+*.sql linguist-language=SQL
+*.sql linguist-detectable=true

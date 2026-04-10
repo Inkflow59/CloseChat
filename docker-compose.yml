@@ -16,14 +16,14 @@ services:
       context: ./api
     container_name: closechat-api
     environment:
-      PORT: "3001"
+      PORT: "6767"
       DATABASE_URL: "postgres://closechat:closechat@postgres:5432/closechat"
-      CRASH_REPORT_SUBMIT_URL: "http://localhost:3001/crash"
+      CRASH_REPORT_SUBMIT_URL: "http://localhost:6767/crash"
       # Clés JWT persistantes (optionnel si tu fournis aussi JWT_PRIVATE_KEY/JWT_PUBLIC_KEY)
       # Le code lit aussi `secrets/jwt_private.pem` et `secrets/jwt_public.pem`.
       CRASH_REPORTING_ENABLED: "true"
     ports:
-      - "3001:3001"
+      - "6767:6767"
     volumes:
       - ./secrets:/app/secrets:ro
       - ./db:/db:ro

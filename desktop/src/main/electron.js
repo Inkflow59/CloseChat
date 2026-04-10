@@ -3,7 +3,7 @@ const path = require('path')
 
 const enableCrashReporting = process.env.CRASH_REPORTING_ENABLED !== 'false'
 const crashSubmitURL =
-  process.env.CRASH_REPORT_SUBMIT_URL || 'http://localhost:3001/crash'
+  process.env.CRASH_REPORT_SUBMIT_URL || 'http://localhost:6767/crash'
 
 const fs = require('fs')
 const jwtPublicKey =
