@@ -190,34 +190,32 @@ export default function ChatPage({ room, username, token, localIP, isHost, initi
           CloseChat
         </Typography>
 
-        {isHost ? (
+        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }}>
+          {isHost && (
+            <Box
+              onClick={() => setShowAdmin(true)}
+              sx={{ border: '2px solid rgba(255,255,255,0.7)', borderRadius: 2, px: 3, py: 0.5, cursor: 'pointer', userSelect: 'none', '&:hover': { bgcolor: 'rgba(255,255,255,0.15)' } }}
+            >
+              <Typography sx={{ fontFamily: '"Caveat", system-ui, sans-serif', fontSize: 20, color: '#ffffff' }}>
+                Administrer le salon
+              </Typography>
+            </Box>
+          )}
           <Box
-            onClick={() => setShowAdmin(true)}
-            sx={{
-              border: '2px solid rgba(255,255,255,0.7)',
-              borderRadius: 2,
-              px: 3,
-              py: 0.5,
-              cursor: 'pointer',
-              userSelect: 'none',
-              '&:hover': { bgcolor: 'rgba(255,255,255,0.15)' },
+            onClick={async () => {
+              const lines = messages.map((m) => `[${m.from}] ${m.text}`).join('\n')
+              await window.closechatLan.saveFile({ defaultName: `${room.name}.txt`, content: lines }).catch(() => {})
             }}
+            sx={{ border: '2px solid rgba(255,255,255,0.5)', borderRadius: 2, px: 2, py: 0.5, cursor: 'pointer', userSelect: 'none', '&:hover': { bgcolor: 'rgba(255,255,255,0.15)' } }}
+            title="Exporter la conversation"
           >
-            <Typography sx={{ fontFamily: '"Caveat", system-ui, sans-serif', fontSize: 20, color: '#ffffff' }}>
-              Administrer le salon
+            <Typography sx={{ fontFamily: '"Caveat", system-ui, sans-serif', fontSize: 20, color: 'rgba(255,255,255,0.85)' }}>
+              Exporter
             </Typography>
           </Box>
-        ) : (
-          <Box />
-        )}
+        </Box>
 
-        <Typography
-          sx={{
-            fontFamily: '"Caveat", system-ui, sans-serif',
-            fontSize: 20,
-            color: 'rgba(255,255,255,0.85)',
-          }}
-        >
+        <Typography sx={{ fontFamily: '"Caveat", system-ui, sans-serif', fontSize: 20, color: 'rgba(255,255,255,0.85)' }}>
           {localIP || '…'}
         </Typography>
       </Box>

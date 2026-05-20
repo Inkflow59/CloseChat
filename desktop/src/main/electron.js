@@ -1,4 +1,4 @@
-const { app, BrowserWindow, crashReporter, ipcMain, Notification } = require('electron')
+const { app, BrowserWindow, crashReporter, ipcMain, Notification, Tray, Menu, dialog, nativeImage } = require('electron')
 const path = require('path')
 
 const enableCrashReporting = process.env.CRASH_REPORTING_ENABLED !== 'false'
@@ -6,31 +6,53 @@ const crashSubmitURL =
   process.env.CRASH_REPORT_SUBMIT_URL || 'http://localhost:6767/crash'
 
 const fs = require('fs')
-const jwtPublicKey =
-  process.env.JWT_PUBLIC_KEY ||
-  (() => {
-    try {
-      const jwtPath = path.join(__dirname, '..', '..', '..', 'secrets', 'jwt_public.pem')
-      if (!fs.existsSync(jwtPath)) return ''
-      return fs.readFileSync(jwtPath, 'utf8')
-    } catch (_) {
-      return ''
-    }
-  })()
+const { generateKeyPairSync } = require('crypto')
 
-const jwtPrivateKey =
-  process.env.JWT_PRIVATE_KEY ||
-  (() => {
-    try {
-      const jwtPrivPath = path.join(__dirname, '..', '..', '..', 'secrets', 'jwt_private.pem')
-      if (!fs.existsSync(jwtPrivPath)) return ''
-      return fs.readFileSync(jwtPrivPath, 'utf8')
-    } catch (_) {
-      return ''
+const secretsDir =
+  process.env.JWT_SECRETS_DIR ||
+  (app.isPackaged
+    ? path.join(app.getPath('userData'), 'secrets')
+    : path.join(__dirname, '..', '..', '..', 'secrets'))
+const jwtPrivatePath = path.join(secretsDir, 'jwt_private.pem')
+const jwtPublicPath = path.join(secretsDir, 'jwt_public.pem')
+
+function readJwtPem(filePath) {
+  try {
+    if (!fs.existsSync(filePath)) return ''
+    return fs.readFileSync(filePath, 'utf8')
+  } catch (_) {
+    return ''
+  }
+}
+
+function ensureJwtKeysOnDisk() {
+  if (fs.existsSync(jwtPrivatePath) && fs.existsSync(jwtPublicPath)) return
+  fs.mkdirSync(secretsDir, { recursive: true })
+  const { publicKey, privateKey } = generateKeyPairSync('rsa', {
+    modulusLength: 2048,
+    publicKeyEncoding: { type: 'spki', format: 'pem' },
+    privateKeyEncoding: { type: 'pkcs8', format: 'pem' },
+  })
+  fs.writeFileSync(jwtPrivatePath, privateKey, 'utf8')
+  fs.writeFileSync(jwtPublicPath, publicKey, 'utf8')
+}
+
+function getJwtKeys() {
+  if (process.env.JWT_PRIVATE_KEY && process.env.JWT_PUBLIC_KEY) {
+    return {
+      privateKey: process.env.JWT_PRIVATE_KEY,
+      publicKey: process.env.JWT_PUBLIC_KEY,
     }
-  })()
+  }
+  ensureJwtKeysOnDisk()
+  return {
+    privateKey: readJwtPem(jwtPrivatePath),
+    publicKey: readJwtPem(jwtPublicPath),
+  }
+}
 
 let mainWindow = null
+let tray = null
 let lanServer = null
 let lanRooms = new Map() // roomName -> { passwordHashHex: string|null, clients: Set<WebSocket>, createdAt }
 let lanServerPort = null
@@ -96,10 +118,60 @@ async function waitForDevServer(url, timeoutMs = 20000, intervalMs = 250) {
   return false
 }
 
+function getTrayIcon() {
+  const iconPath = path.join(__dirname, '..', '..', '..', 'resources', 'tray.png')
+  try {
+    return nativeImage.createFromPath(iconPath)
+  } catch (_) {
+    return nativeImage.createEmpty()
+  }
+}
+
+function setupTray() {
+  tray = new Tray(getTrayIcon())
+  tray.setToolTip('CloseChat')
+
+  const buildMenu = () => Menu.buildFromTemplate([
+    {
+      label: 'Afficher CloseChat',
+      click: () => {
+        if (mainWindow) {
+          if (mainWindow.isMinimized()) mainWindow.restore()
+          mainWindow.show()
+          mainWindow.focus()
+        }
+      },
+    },
+    { type: 'separator' },
+    {
+      label: 'Démarrage automatique',
+      type: 'checkbox',
+      checked: app.getLoginItemSettings().openAtLogin,
+      click: (item) => {
+        app.setLoginItemSettings({ openAtLogin: item.checked })
+        tray.setContextMenu(buildMenu())
+      },
+    },
+    { type: 'separator' },
+    { label: 'Quitter', click: () => app.quit() },
+  ])
+
+  tray.setContextMenu(buildMenu())
+  tray.on('double-click', () => {
+    if (mainWindow) {
+      if (mainWindow.isMinimized()) mainWindow.restore()
+      mainWindow.show()
+      mainWindow.focus()
+    }
+  })
+}
+
 function createWindow({ devUrl, isDev }) {
+  const iconPath = path.join(__dirname, '..', '..', '..', 'resources', 'icon.ico')
   const win = new BrowserWindow({
     width: 1100,
     height: 720,
+    icon: fs.existsSync(iconPath) ? iconPath : undefined,
     webPreferences: {
       preload: path.join(__dirname, 'preload.js'),
       nodeIntegration: false,
@@ -107,6 +179,14 @@ function createWindow({ devUrl, isDev }) {
     },
   })
   mainWindow = win
+
+  // Minimiser dans le tray au lieu de fermer
+  win.on('close', (e) => {
+    if (tray) {
+      e.preventDefault()
+      win.hide()
+    }
+  })
 
   if (isDev) {
     win.loadURL(devUrl)
@@ -127,9 +207,10 @@ app.whenReady().then(async () => {
   }
 
   createWindow({ devUrl, isDev })
+  setupTray()
 
   app.on('activate', function () {
-    if (BrowserWindow.getAllWindows().length === 0) createWindow()
+    if (BrowserWindow.getAllWindows().length === 0) createWindow({ devUrl, isDev })
   })
 })
 
@@ -140,10 +221,11 @@ function sha256Hex(input) {
 
 function verifyJWT(token) {
   const jwt = require('jsonwebtoken')
-  if (!jwtPublicKey) {
+  const { publicKey } = getJwtKeys()
+  if (!publicKey) {
     throw new Error('JWT_PUBLIC_KEY manquant (pour le LAN).')
   }
-  return jwt.verify(token, jwtPublicKey, { algorithms: ['RS256'] })
+  return jwt.verify(token, publicKey, { algorithms: ['RS256'] })
 }
 
 function broadcastToRoom(room, payload) {
@@ -166,8 +248,8 @@ ipcMain.handle('lan:hostStart', async (event, args = {}) => {
   const { port } = args
   const listenPort = Number(port) || 5050
 
-  if (!jwtPublicKey) {
-    // Evite un “succès” trompeur avec une vérification qui ne ferait jamais le lien.
+  const { publicKey } = getJwtKeys()
+  if (!publicKey) {
     throw new Error('JWT_PUBLIC_KEY manquant : configure une clé publique persistante.')
   }
 
@@ -575,10 +657,11 @@ ipcMain.handle('lan:hostUpdateRoom', async (event, args = {}) => {
 ipcMain.handle('lan:signLocalToken', async (event, args = {}) => {
   const jwt = require('jsonwebtoken')
   const { username } = args
-  if (!jwtPrivateKey) throw new Error('JWT_PRIVATE_KEY manquant dans secrets/jwt_private.pem')
+  const { privateKey } = getJwtKeys()
+  if (!privateKey) throw new Error('JWT_PRIVATE_KEY manquant dans secrets/jwt_private.pem')
   const token = jwt.sign(
     { sub: username, username },
-    jwtPrivateKey,
+    privateKey,
     { algorithm: 'RS256', expiresIn: '24h' }
   )
   return { token }
@@ -699,6 +782,72 @@ ipcMain.handle('lan:discoverAndListRooms', async (event, args = {}) => {
   const allRooms = (await Promise.all(openHosts.map((host) => getRoomsFromHost(host)))).flat()
 
   return { rooms: allRooms, localIP }
+})
+
+ipcMain.handle('app:getAutoStart', () => {
+  return { enabled: app.getLoginItemSettings().openAtLogin }
+})
+
+ipcMain.handle('app:setAutoStart', (event, { enabled }) => {
+  app.setLoginItemSettings({ openAtLogin: Boolean(enabled) })
+  if (tray) {
+    const buildMenu = () => Menu.buildFromTemplate([
+      {
+        label: 'Afficher CloseChat',
+        click: () => {
+          if (mainWindow) {
+            if (mainWindow.isMinimized()) mainWindow.restore()
+            mainWindow.show()
+            mainWindow.focus()
+          }
+        },
+      },
+      { type: 'separator' },
+      {
+        label: 'Démarrage automatique',
+        type: 'checkbox',
+        checked: app.getLoginItemSettings().openAtLogin,
+        click: (item) => {
+          app.setLoginItemSettings({ openAtLogin: item.checked })
+          tray.setContextMenu(buildMenu())
+        },
+      },
+      { type: 'separator' },
+      { label: 'Quitter', click: () => app.quit() },
+    ])
+    tray.setContextMenu(buildMenu())
+  }
+  return { enabled: Boolean(enabled) }
+})
+
+ipcMain.handle('app:saveFile', async (event, { defaultName, content }) => {
+  const { filePath, canceled } = await dialog.showSaveDialog(mainWindow, {
+    title: 'Exporter la conversation',
+    defaultPath: defaultName || 'conversation.txt',
+    filters: [
+      { name: 'Fichier texte', extensions: ['txt'] },
+      { name: 'JSON', extensions: ['json'] },
+    ],
+  })
+  if (canceled || !filePath) return { ok: false }
+  const fs = require('fs')
+  fs.writeFileSync(filePath, content, 'utf8')
+  return { ok: true, filePath }
+})
+
+ipcMain.handle('app:openFile', async () => {
+  const { filePaths, canceled } = await dialog.showOpenDialog(mainWindow, {
+    title: 'Ouvrir un fichier',
+    properties: ['openFile'],
+    filters: [
+      { name: 'Fichier texte', extensions: ['txt'] },
+      { name: 'JSON', extensions: ['json'] },
+    ],
+  })
+  if (canceled || filePaths.length === 0) return { ok: false }
+  const fs = require('fs')
+  const content = fs.readFileSync(filePaths[0], 'utf8')
+  return { ok: true, filePath: filePaths[0], content }
 })
 
 app.on('window-all-closed', function () {

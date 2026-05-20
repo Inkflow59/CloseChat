@@ -42,18 +42,7 @@ const labelSx = {
   pl: 0.5,
 }
 
-function profileKey(u: string) { return `closechat:profile:${u}` }
-
-function loadLocalProfile(u: string): Partial<Profile> {
-  try {
-    const raw = localStorage.getItem(profileKey(u))
-    return raw ? JSON.parse(raw) : {}
-  } catch (_) { return {} }
-}
-
-function saveLocalProfile(u: string, p: { avatar_emoji: string; status: string; bio: string }) {
-  try { localStorage.setItem(profileKey(u), JSON.stringify(p)) } catch (_) {}
-}
+import { getLocalProfile, saveLocalProfile, markPersisted } from '../profileStorage'
 
 export default function AccountPanel({ username, localIP, room, token, onClose, onUsernameChange, onProfileSaved }: Props) {
   const [avatar, setAvatar]   = useState('😊')
@@ -65,34 +54,33 @@ export default function AccountPanel({ username, localIP, room, token, onClose, 
   const [newPassword, setNewPassword]         = useState('')
   const [confirmPassword, setConfirmPassword] = useState('')
   const [saving, setSaving] = useState(false)
+  const [autoStart, setAutoStart] = useState(false)
   const [error, setError]   = useState('')
   const [success, setSuccess] = useState('')
 
   useEffect(() => {
-    const local = loadLocalProfile(username)
-    const isDefault = local.avatar_emoji === '😊' && !local.bio && local.status === 'available'
+    window.closechatLan.getAutoStart().then(({ enabled }) => setAutoStart(enabled)).catch(() => {})
+  }, [])
 
+  useEffect(() => {
+    // Affichage immédiat depuis localStorage (pas de flash)
+    const local = getLocalProfile(username)
     setAvatar(local.avatar_emoji || '😊')
     setStatus((local.status || 'available') as 'available' | 'busy' | 'dnd')
     setBio(local.bio || '')
 
-    // Charger depuis l'API uniquement si localStorage ne contient rien de personnalisé
-    // (évite d'écraser un profil local avec des valeurs par défaut de la BDD)
-    if (isDefault) {
-      fetch(`${API}/profile/me`, { headers: { Authorization: `Bearer ${token}` } })
-        .then((r) => r.ok ? r.json() : null)
-        .then((data) => {
-          if (!data?.profile) return
-          const p = data.profile
-          const apiIsDefault = p.avatar_emoji === '😊' && !p.bio && p.status === 'available'
-          if (apiIsDefault) return
-          setAvatar(p.avatar_emoji || '😊')
-          setStatus((p.status || 'available') as 'available' | 'busy' | 'dnd')
-          setBio(p.bio || '')
-          saveLocalProfile(username, { avatar_emoji: p.avatar_emoji, status: p.status, bio: p.bio })
-        })
-        .catch(() => {})
-    }
+    // L'API est source de vérité : on synchronise toujours localStorage depuis elle
+    fetch(`${API}/profile/me`, { headers: { Authorization: `Bearer ${token}` } })
+      .then((r) => r.ok ? r.json() : null)
+      .then((data) => {
+        if (!data?.profile) return
+        const p = data.profile
+        setAvatar(p.avatar_emoji || '😊')
+        setStatus((p.status || 'available') as 'available' | 'busy' | 'dnd')
+        setBio(p.bio || '')
+        saveLocalProfile(username, { avatar_emoji: p.avatar_emoji || '😊', status: p.status || 'available', bio: p.bio || '' }, true)
+      })
+      .catch(() => { /* API indisponible, localStorage est conservé */ })
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
@@ -109,9 +97,9 @@ export default function AccountPanel({ username, localIP, room, token, onClose, 
     }
     setSaving(true)
     try {
-      // 1. Sauvegarder le profil en local (toujours)
+      // 1. Sauvegarder le profil en local, marqué non persisté jusqu'à confirmation API
       const profileData = { avatar_emoji: avatar, status, bio }
-      saveLocalProfile(username, profileData)
+      saveLocalProfile(username, profileData, false)
       onProfileSaved({ username, ...profileData })
 
       // Broadcaster la mise à jour aux autres membres du salon (temps réel)
@@ -124,23 +112,26 @@ export default function AccountPanel({ username, localIP, room, token, onClose, 
           headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
           body: JSON.stringify({ avatarEmoji: avatar, status, bio }),
         })
-        if (!res.ok) {
+        if (res.ok) {
+          markPersisted(username)
+        } else {
           const data = await res.json().catch(() => ({}))
           console.warn('Profile API error:', data.error)
         }
-      } catch (_) { /* API indisponible, localStorage suffit */ }
+      } catch (_) { /* API indisponible, sera synchronisé au prochain login */ }
 
       // 3. Changement de pseudo
       if (newPseudo.trim() && newPseudo.trim() !== username) {
         await window.closechatLan.clientRename({ newUsername: newPseudo.trim(), room: room.name, token })
         const { token: newToken } = await window.closechatLan.signLocalToken({ username: newPseudo.trim() })
-        saveLocalProfile(newPseudo.trim(), profileData)
+        saveLocalProfile(newPseudo.trim(), profileData, false)
         try {
-          await fetch(`${API}/profile`, {
+          const r = await fetch(`${API}/profile`, {
             method: 'PUT',
             headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${newToken}` },
             body: JSON.stringify({ avatarEmoji: avatar, status, bio }),
           })
+          if (r.ok) markPersisted(newPseudo.trim())
         } catch (_) {}
         onUsernameChange(newPseudo.trim(), newToken)
       }
@@ -266,6 +257,25 @@ export default function AccountPanel({ username, localIP, room, token, onClose, 
               <TextField size="small" fullWidth variant="outlined" value={newEmail} onChange={(e) => setNewEmail(e.target.value)} sx={fieldSx} />
             </Stack>
           </Stack>
+
+          <Divider sx={{ my: 2 }} />
+
+          {/* Démarrage automatique */}
+          <Box
+            onClick={async () => {
+              const next = !autoStart
+              setAutoStart(next)
+              await window.closechatLan.setAutoStart({ enabled: next }).catch(() => {})
+            }}
+            sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', cursor: 'pointer', px: 1, py: 1.2, borderRadius: 2, '&:hover': { bgcolor: '#f9fafb' } }}
+          >
+            <Typography sx={{ fontFamily: '"Caveat", system-ui, sans-serif', fontSize: 22, color: '#374151' }}>
+              Lancer au démarrage
+            </Typography>
+            <Box sx={{ width: 44, height: 24, borderRadius: 12, bgcolor: autoStart ? '#b25a33' : '#d1d5db', position: 'relative', transition: 'background 0.2s', flexShrink: 0 }}>
+              <Box sx={{ position: 'absolute', top: 3, left: autoStart ? 23 : 3, width: 18, height: 18, borderRadius: '50%', bgcolor: '#ffffff', transition: 'left 0.2s', boxShadow: '0 1px 3px rgba(0,0,0,0.2)' }} />
+            </Box>
+          </Box>
 
           <Divider sx={{ my: 2 }} />
 

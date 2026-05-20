@@ -102,17 +102,20 @@ export default function HomePage({ navigate }: Props) {
           sx={{ alignItems: 'center' }}
         >
           <Stack spacing={1} sx={{ textAlign: { xs: 'center', md: 'left' } }}>
-            <Typography
-              component="h1"
-              sx={{
-                fontFamily: '"Caveat", system-ui, sans-serif',
-                fontSize: { xs: 44, sm: 56, md: 68 },
-                lineHeight: 1.05,
-                color: '#1f2933',
-              }}
-            >
-              CloseChat
-            </Typography>
+            <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
+              <Box component="img" src="/icon.png" alt="CloseChat" sx={{ width: 64, height: 64, borderRadius: 2.5, flexShrink: 0 }} />
+              <Typography
+                component="h1"
+                sx={{
+                  fontFamily: '"Caveat", system-ui, sans-serif',
+                  fontSize: { xs: 44, sm: 56, md: 68 },
+                  lineHeight: 1.05,
+                  color: '#1f2933',
+                }}
+              >
+                CloseChat
+              </Typography>
+            </Box>
             <Typography
               sx={{
                 fontFamily: '"Caveat", system-ui, sans-serif',

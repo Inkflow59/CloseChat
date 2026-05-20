@@ -42,5 +42,10 @@ contextBridge.exposeInMainWorld('closechatLan', {
     ipcRenderer.removeAllListeners('lan:message')
     ipcRenderer.on('lan:message', (_, msg) => cb(msg))
   },
+
+  getAutoStart: () => ipcRenderer.invoke('app:getAutoStart'),
+  setAutoStart: (args) => ipcRenderer.invoke('app:setAutoStart', args),
+  saveFile: (args) => ipcRenderer.invoke('app:saveFile', args),
+  openFile: () => ipcRenderer.invoke('app:openFile'),
 })
 

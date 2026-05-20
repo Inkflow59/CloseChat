@@ -54,6 +54,10 @@ declare global {
       clientLeave: () => Promise<{ ok: boolean }>
       hostDeleteRoom: (args: { room: string }) => Promise<{ ok: boolean }>
       onMessage: (cb: (msg: unknown) => void) => void
+      getAutoStart: () => Promise<{ enabled: boolean }>
+      setAutoStart: (args: { enabled: boolean }) => Promise<{ enabled: boolean }>
+      saveFile: (args: { defaultName?: string; content: string }) => Promise<{ ok: boolean; filePath?: string }>
+      openFile: () => Promise<{ ok: boolean; filePath?: string; content?: string }>
     }
   }
 }

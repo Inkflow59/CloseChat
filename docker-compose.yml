@@ -27,10 +27,11 @@ services:
       # Clés JWT persistantes (optionnel si tu fournis aussi JWT_PRIVATE_KEY/JWT_PUBLIC_KEY)
       # Le code lit aussi `secrets/jwt_private.pem` et `secrets/jwt_public.pem`.
       CRASH_REPORTING_ENABLED: "true"
+      JWT_SECRETS_DIR: "/app/secrets"
     ports:
       - "6767:6767"
     volumes:
-      - ./secrets:/app/secrets:ro
+      - ./secrets:/app/secrets:rw
       - ./db:/db:ro
     depends_on:
       postgres:

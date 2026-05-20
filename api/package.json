@@ -5,6 +5,7 @@
   "main": "src/server.js",
   "scripts": {
     "dev": "nodemon src/server.js",
+    "prestart": "node -e \"require('./src/jwt')\"",
     "start": "node src/server.js"
   },
   "keywords": [],

@@ -1,6 +1,41 @@
 import { useState } from 'react'
+import { getLocalProfile, saveLocalProfile, markPersisted } from '../profileStorage'
 import { Box, Button, Stack, TextField, Typography } from '@mui/material'
 import type { NavigateFn } from './HomePage'
+
+const API = 'http://localhost:6767'
+const SYNC_TIMEOUT_MS = 1000
+
+async function syncProfileOnLogin(username: string, token: string): Promise<void> {
+  const cached = getLocalProfile(username)
+
+  const withTimeout = (p: Promise<unknown>) =>
+    Promise.race([p, new Promise<never>((_, rej) => setTimeout(() => rej(new Error('timeout')), SYNC_TIMEOUT_MS))])
+
+  if (!cached.isPersisted) {
+    // Des modifs locales attendent d'être persistées → on les envoie
+    try {
+      const res = await withTimeout(fetch(`${API}/profile`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ avatarEmoji: cached.avatar_emoji, status: cached.status, bio: cached.bio }),
+      })) as Response
+      if (res.ok) markPersisted(username)
+    } catch (_) {}
+  } else {
+    // localStorage est à jour → on tire le profil depuis l'API pour écraser d'éventuelles valeurs périmées
+    try {
+      const res = await withTimeout(fetch(`${API}/profile/me`, {
+        headers: { Authorization: `Bearer ${token}` },
+      })) as Response
+      if (!res.ok) return
+      const data = await res.json()
+      if (!data?.profile) return
+      const p = data.profile
+      saveLocalProfile(username, { avatar_emoji: p.avatar_emoji || '😊', status: p.status || 'available', bio: p.bio || '' }, true)
+    } catch (_) {}
+  }
+}
 
 type Props = {
   navigate: NavigateFn
@@ -41,7 +76,11 @@ export default function LoginPage({ navigate }: Props) {
       })
       const data = await res.json().catch(() => ({}))
       if (res.ok) {
-        navigate('discover', { username: data.user?.username ?? id, token: data.token })
+        const username = data.user?.username ?? id
+        const token = data.token
+        // Sync du profil avant de naviguer (timeout 1s pour ne pas bloquer)
+        await syncProfileOnLogin(username, token)
+        navigate('discover', { username, token })
         return
       }
       // L'API a répondu mais les identifiants sont incorrects → on n'utilise pas le fallback
@@ -93,18 +132,18 @@ export default function LoginPage({ navigate }: Props) {
           py: { xs: 3, md: 4.5 },
         }}
       >
-        <Typography
-          sx={{ fontFamily: '"Caveat", system-ui, sans-serif', fontSize: 30, color: '#374151', lineHeight: 1.2 }}
-        >
-          Bienvenue sur
-        </Typography>
-
-        <Typography
-          component="h1"
-          sx={{ fontFamily: '"Caveat", system-ui, sans-serif', fontSize: { xs: 56, sm: 64 }, color: '#1f2933', lineHeight: 1.1, mb: 0.5 }}
-        >
-          CloseChat
-        </Typography>
+        <Box sx={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 0.5 }}>
+          <Box component="img" src="/icon.png" alt="CloseChat" sx={{ width: 72, height: 72, borderRadius: 3, mb: 0.5 }} />
+          <Typography sx={{ fontFamily: '"Caveat", system-ui, sans-serif', fontSize: 30, color: '#374151', lineHeight: 1.2 }}>
+            Bienvenue sur
+          </Typography>
+          <Typography
+            component="h1"
+            sx={{ fontFamily: '"Caveat", system-ui, sans-serif', fontSize: { xs: 56, sm: 64 }, color: '#1f2933', lineHeight: 1.1, mb: 0.5 }}
+          >
+            CloseChat
+          </Typography>
+        </Box>
 
         <Stack spacing={0.6} sx={{ width: '100%' }}>
           <Typography sx={{ fontFamily: '"Caveat", system-ui, sans-serif', fontSize: 24, color: '#374151', pl: 0.5 }}>

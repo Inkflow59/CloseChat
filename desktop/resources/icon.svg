@@ -1,0 +1,17 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256" width="256" height="256">
+  <!-- Fond arrondi -->
+  <rect width="256" height="256" rx="52" ry="52" fill="#b25a33"/>
+
+  <!-- Bulle principale (grande, en bas à droite) -->
+  <rect x="44" y="60" width="148" height="100" rx="22" ry="22" fill="#ffffff"/>
+  <polygon points="72,160 52,196 108,160" fill="#ffffff"/>
+
+  <!-- Bulle secondaire (petite, en haut à droite, translucide) -->
+  <rect x="104" y="100" width="108" height="72" rx="18" ry="18" fill="rgba(255,255,255,0.30)"/>
+  <polygon points="188,172 212,200 160,172" fill="rgba(255,255,255,0.30)"/>
+
+  <!-- Trois points dans la bulle principale -->
+  <circle cx="88"  cy="110" r="10" fill="#b25a33"/>
+  <circle cx="118" cy="110" r="10" fill="#b25a33"/>
+  <circle cx="148" cy="110" r="10" fill="#b25a33"/>
+</svg>

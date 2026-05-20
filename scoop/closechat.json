@@ -1,0 +1,27 @@
+{
+  "version": "1.0.0",
+  "description": "Application de chat en réseau local",
+  "homepage": "https://github.com/Inkflow59/CloseChat",
+  "license": "ISC",
+  "architecture": {
+    "64bit": {
+      "url": "https://github.com/Inkflow59/CloseChat/releases/download/v1.0.0/CloseChat-1.0.0-win.zip",
+      "hash": "REMPLACER_PAR_LE_SHA256_APRES_BUILD"
+    }
+  },
+  "extract_dir": "win-unpacked",
+  "bin": "CloseChat.exe",
+  "shortcuts": [
+    ["CloseChat.exe", "CloseChat"]
+  ],
+  "checkver": {
+    "github": "https://github.com/Inkflow59/CloseChat"
+  },
+  "autoupdate": {
+    "architecture": {
+      "64bit": {
+        "url": "https://github.com/Inkflow59/CloseChat/releases/download/v$version/CloseChat-$version-win.zip"
+      }
+    }
+  }
+}

@@ -1,6 +1,12 @@
 const fs = require('fs')
 const path = require('path')
+const { generateKeyPairSync } = require('crypto')
 const jwt = require('jsonwebtoken')
+
+// JWT_SECRETS_DIR (env) > chemin calculé relatif à ce fichier (<repo>/secrets en dev, /app/secrets en Docker)
+const secretsDir = process.env.JWT_SECRETS_DIR || path.join(__dirname, '..', '..', 'secrets')
+const PRIVATE_PATH = path.join(secretsDir, 'jwt_private.pem')
+const PUBLIC_PATH = path.join(secretsDir, 'jwt_public.pem')
 
 function readIfFileExists(filePath) {
   try {
@@ -9,6 +15,20 @@ function readIfFileExists(filePath) {
   } catch (_) {
     return null
   }
+}
+
+function ensureKeysOnDisk() {
+  if (fs.existsSync(PRIVATE_PATH) && fs.existsSync(PUBLIC_PATH)) return
+  fs.mkdirSync(secretsDir, { recursive: true })
+  const { publicKey, privateKey } = generateKeyPairSync('rsa', {
+    modulusLength: 2048,
+    publicKeyEncoding: { type: 'spki', format: 'pem' },
+    privateKeyEncoding: { type: 'pkcs8', format: 'pem' },
+  })
+  fs.writeFileSync(PRIVATE_PATH, privateKey, 'utf8')
+  fs.writeFileSync(PUBLIC_PATH, publicKey, 'utf8')
+  // eslint-disable-next-line no-console
+  console.log('JWT : clés RSA générées automatiquement dans secrets/')
 }
 
 function getSigningKeys() {
@@ -21,18 +41,11 @@ function getSigningKeys() {
 
   // Fallback : lire les clés persistantes depuis `secrets/`.
   // Cette approche facilite le mode multi-machines (copier seulement jwt_public.pem).
-  // __dirname = <repo>/api/src => remonter jusqu'à <repo>/
-  const repoRoot = path.join(__dirname, '..', '..', '..')
-  const privateFromDisk = readIfFileExists(path.join(repoRoot, 'secrets', 'jwt_private.pem'))
-  const publicFromDisk = readIfFileExists(path.join(repoRoot, 'secrets', 'jwt_public.pem'))
-
-  if (privateFromDisk && publicFromDisk) {
-    return { privateKey: privateFromDisk, publicKey: publicFromDisk }
+  ensureKeysOnDisk()
+  return {
+    privateKey: readIfFileExists(PRIVATE_PATH),
+    publicKey: readIfFileExists(PUBLIC_PATH),
   }
-
-  throw new Error(
-    'JWT keys manquantes : définis JWT_PRIVATE_KEY/JWT_PUBLIC_KEY ou crée secrets/jwt_private.pem & secrets/jwt_public.pem',
-  )
 }
 
 function signAccessToken({ userId, username }) {
