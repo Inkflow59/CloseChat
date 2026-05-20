@@ -54,8 +54,15 @@ code {
 }
 
 .slidev-code {
-  background: rgba(31,41,51,0.94) !important;
+  background: rgba(178,90,51,0.06) !important;
   border-radius: 12px !important;
+  border: 1px solid rgba(178,90,51,0.18) !important;
+}
+
+.slidev-code code,
+.slidev-code .line {
+  background: transparent !important;
+  color: #1f2933 !important;
 }
 
 table {
