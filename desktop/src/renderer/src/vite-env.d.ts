@@ -29,6 +29,10 @@ declare global {
         port?: number
         connectTimeoutMs?: number
       }) => Promise<{ rooms: Room[]; localIP: string }>
+      hostGetRoomDetails: (args: { room: string }) => Promise<{ members: { userId: string; username: string; ip: string }[] }>
+      hostKickClient: (args: { room: string; userId: string }) => Promise<{ ok: boolean }>
+      hostBanClient: (args: { room: string; userId: string }) => Promise<{ ok: boolean }>
+      hostUpdateRoom: (args: { room: string; newName?: string; newPassword?: string }) => Promise<{ ok: boolean; name: string }>
       signLocalToken: (args: { username: string }) => Promise<{ token: string }>
       clientLeave: () => Promise<{ ok: boolean }>
       hostDeleteRoom: (args: { room: string }) => Promise<{ ok: boolean }>

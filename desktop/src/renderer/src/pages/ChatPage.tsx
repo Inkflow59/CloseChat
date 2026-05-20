@@ -2,6 +2,7 @@ import { useState, useEffect, useRef } from 'react'
 import { Box, Stack, TextField, Typography } from '@mui/material'
 import type { NavigateFn } from './HomePage'
 import type { Room } from '../vite-env'
+import AdminPanel from '../components/AdminPanel'
 
 type Props = {
   navigate: NavigateFn
@@ -39,6 +40,8 @@ export default function ChatPage({ room, username, token, localIP }: Props) {
   const [messages, setMessages] = useState<Message[]>([])
   const [members, setMembers] = useState<string[]>([username])
   const [input, setInput] = useState('')
+  const [showAdmin, setShowAdmin] = useState(false)
+  const [currentRoom, setCurrentRoom] = useState<Room>(room)
   const bottomRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
@@ -122,14 +125,15 @@ export default function ChatPage({ room, username, token, localIP }: Props) {
         </Typography>
 
         <Box
+          onClick={() => setShowAdmin(true)}
           sx={{
             border: '2px solid rgba(255,255,255,0.7)',
             borderRadius: 2,
             px: 3,
             py: 0.5,
-            cursor: 'default',
+            cursor: 'pointer',
             userSelect: 'none',
-            '&:hover': { bgcolor: 'rgba(255,255,255,0.1)' },
+            '&:hover': { bgcolor: 'rgba(255,255,255,0.15)' },
           }}
         >
           <Typography
@@ -179,7 +183,7 @@ export default function ChatPage({ room, username, token, localIP }: Props) {
               flexShrink: 0,
             }}
           >
-            {room.name}
+            {currentRoom.name}
           </Typography>
 
           {/* Zone messages */}
@@ -194,41 +198,47 @@ export default function ChatPage({ room, username, token, localIP }: Props) {
               gap: 2.5,
             }}
           >
-            {messages.map((msg) => (
-              <Box key={msg.id}>
-                <Typography
-                  sx={{
-                    fontFamily: '"Caveat", system-ui, sans-serif',
-                    fontSize: 18,
-                    color: '#6b7280',
-                    mb: 0.4,
-                  }}
-                >
-                  {msg.from}
-                </Typography>
+            {messages.map((msg) => {
+              const isMine = msg.from === username
+              return (
                 <Box
-                  sx={{
-                    display: 'inline-block',
-                    border: '1.5px solid #d1d5db',
-                    borderRadius: 3,
-                    px: 2.5,
-                    py: 1,
-                    bgcolor: '#ffffff',
-                    maxWidth: '68%',
-                  }}
+                  key={msg.id}
+                  sx={{ display: 'flex', flexDirection: 'column', alignItems: isMine ? 'flex-end' : 'flex-start' }}
                 >
                   <Typography
                     sx={{
                       fontFamily: '"Caveat", system-ui, sans-serif',
-                      fontSize: 20,
-                      color: '#1f2933',
+                      fontSize: 18,
+                      color: '#6b7280',
+                      mb: 0.4,
                     }}
                   >
-                    {msg.text}
+                    {msg.from}
                   </Typography>
+                  <Box
+                    sx={{
+                      display: 'inline-block',
+                      border: isMine ? '1.5px solid #b25a33' : '1.5px solid #d1d5db',
+                      borderRadius: 3,
+                      px: 2.5,
+                      py: 1,
+                      bgcolor: isMine ? '#fdf0e8' : '#ffffff',
+                      maxWidth: '68%',
+                    }}
+                  >
+                    <Typography
+                      sx={{
+                        fontFamily: '"Caveat", system-ui, sans-serif',
+                        fontSize: 20,
+                        color: '#1f2933',
+                      }}
+                    >
+                      {msg.text}
+                    </Typography>
+                  </Box>
                 </Box>
-              </Box>
-            ))}
+              )
+            })}
             <div ref={bottomRef} />
           </Box>
 
@@ -341,6 +351,18 @@ export default function ChatPage({ room, username, token, localIP }: Props) {
           </Typography>
         </Box>
       </Box>
+
+      {showAdmin && (
+        <AdminPanel
+          room={currentRoom}
+          localIP={localIP}
+          currentUsername={username}
+          onClose={(updatedRoom) => {
+            if (updatedRoom) setCurrentRoom(updatedRoom)
+            setShowAdmin(false)
+          }}
+        />
+      )}
     </Box>
   )
 }

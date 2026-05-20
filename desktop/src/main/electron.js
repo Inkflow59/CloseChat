@@ -37,6 +37,7 @@ let lanServerPort = null
 
 let lanClientSocket = null
 let lanClientRoom = null
+let lanBanned = new Map() // roomName -> Set<userId>
 
 if (enableCrashReporting) {
   // Envoie automatique des crashs au backend self-hosted.
@@ -148,6 +149,7 @@ ipcMain.handle('lan:hostStart', async (event, args = {}) => {
   lanRooms = new Map()
 
   lanServer.on('connection', (ws) => {
+    ws.__lanIP = ((ws._socket?.remoteAddress) || 'unknown').replace('::ffff:', '')
     ws.on('message', (data) => {
       let msg
       try {
@@ -174,6 +176,10 @@ ipcMain.handle('lan:hostStart', async (event, args = {}) => {
           }
 
           const roomState = lanRooms.get(room)
+          const banned = lanBanned.get(room)
+          if (banned && banned.has(payload.sub)) {
+            return ws.send(JSON.stringify({ type: 'join_room_ack', ok: false, error: 'Vous êtes banni de ce salon.' }))
+          }
           if (roomState.passwordHashHex) {
             if (!roomPassword) {
               return ws.send(
@@ -190,7 +196,7 @@ ipcMain.handle('lan:hostStart', async (event, args = {}) => {
 
           roomState.clients.add(ws)
           ws.__lanRoom = room
-          ws.__lanUser = { userId: payload.sub, username }
+          ws.__lanUser = { userId: payload.sub, username, ip: ws.__lanIP || 'unknown' }
 
           const existingMembers = [...roomState.clients]
             .filter((c) => c.__lanUser)
@@ -370,6 +376,64 @@ ipcMain.handle('lan:clientSendMessage', async (event, args = {}) => {
   )
 
   return { ok: true }
+})
+
+ipcMain.handle('lan:hostGetRoomDetails', async (event, args = {}) => {
+  const { room } = args
+  const roomState = lanRooms.get(room)
+  if (!roomState) return { members: [] }
+  const members = [...roomState.clients]
+    .filter((c) => c.__lanUser)
+    .map((c) => ({ userId: c.__lanUser.userId, username: c.__lanUser.username, ip: c.__lanUser.ip || 'unknown' }))
+  return { members }
+})
+
+ipcMain.handle('lan:hostKickClient', async (event, args = {}) => {
+  const { room, userId } = args
+  const roomState = lanRooms.get(room)
+  if (!roomState) throw new Error('Salon introuvable')
+  for (const ws of roomState.clients) {
+    if (ws.__lanUser?.userId === userId) {
+      ws.close()
+      return { ok: true }
+    }
+  }
+  return { ok: false }
+})
+
+ipcMain.handle('lan:hostBanClient', async (event, args = {}) => {
+  const { room, userId } = args
+  const roomState = lanRooms.get(room)
+  if (!roomState) throw new Error('Salon introuvable')
+  if (!lanBanned.has(room)) lanBanned.set(room, new Set())
+  lanBanned.get(room).add(userId)
+  for (const ws of roomState.clients) {
+    if (ws.__lanUser?.userId === userId) {
+      ws.close()
+      break
+    }
+  }
+  return { ok: true }
+})
+
+ipcMain.handle('lan:hostUpdateRoom', async (event, args = {}) => {
+  const { room, newName, newPassword } = args
+  const roomState = lanRooms.get(room)
+  if (!roomState) throw new Error('Salon introuvable')
+  if (newPassword) {
+    roomState.passwordHashHex = sha256Hex(newPassword)
+  }
+  const finalName = (newName && newName.trim() && newName.trim() !== room) ? newName.trim() : room
+  if (finalName !== room) {
+    lanRooms.delete(room)
+    lanRooms.set(finalName, roomState)
+    for (const ws of roomState.clients) ws.__lanRoom = finalName
+    if (lanBanned.has(room)) {
+      lanBanned.set(finalName, lanBanned.get(room))
+      lanBanned.delete(room)
+    }
+  }
+  return { ok: true, name: finalName }
 })
 
 ipcMain.handle('lan:signLocalToken', async (event, args = {}) => {
