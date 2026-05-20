@@ -8,6 +8,13 @@ export type Room = {
   port: number
 }
 
+export type Profile = {
+  username: string
+  avatar_emoji: string
+  status: 'available' | 'busy' | 'dnd'
+  bio: string
+}
+
 declare global {
   interface Window {
     closechatLan: {
@@ -22,7 +29,14 @@ declare global {
         room: string
         token: string
         roomPassword?: string
-      }) => Promise<{ ok: boolean; room: string; members: string[] }>
+        profile?: { avatar_emoji: string; status: string; bio: string }
+      }) => Promise<{
+        ok: boolean
+        room: string
+        members: string[]
+        memberProfiles: { username: string; profile: { avatar_emoji: string; status: string; bio: string } }[]
+        history: { from: { username: string }; message: string; at: string }[]
+      }>
       clientSendMessage: (args: { room?: string; token: string; message: string }) => Promise<{ ok: boolean }>
       getLocalIP: () => Promise<{ ip: string }>
       discoverAndListRooms: (args?: {
@@ -30,6 +44,7 @@ declare global {
         connectTimeoutMs?: number
       }) => Promise<{ rooms: Room[]; localIP: string }>
       notify: (args: { title: string; body: string }) => Promise<void>
+      clientProfileUpdate: (args: { room: string; token: string; profile: { avatar_emoji: string; status: string; bio: string } }) => Promise<{ ok: boolean }>
       clientRename: (args: { newUsername: string; room: string; token: string }) => Promise<{ ok: boolean }>
       hostGetRoomDetails: (args: { room: string }) => Promise<{ members: { userId: string; username: string; ip: string }[] }>
       hostKickClient: (args: { room: string; userId: string }) => Promise<{ ok: boolean }>

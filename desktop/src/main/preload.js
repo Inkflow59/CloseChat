@@ -26,6 +26,7 @@ contextBridge.exposeInMainWorld('closechatLan', {
   clientJoin: (args) => ipcRenderer.invoke('lan:clientJoin', args),
   clientSendMessage: (args) => ipcRenderer.invoke('lan:clientSendMessage', args),
   notify: (args) => ipcRenderer.invoke('app:notify', args),
+  clientProfileUpdate: (args) => ipcRenderer.invoke('lan:clientProfileUpdate', args),
   clientRename: (args) => ipcRenderer.invoke('lan:clientRename', args),
   hostGetRoomDetails: (args) => ipcRenderer.invoke('lan:hostGetRoomDetails', args),
   hostKickClient: (args) => ipcRenderer.invoke('lan:hostKickClient', args),

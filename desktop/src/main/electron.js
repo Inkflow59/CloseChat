@@ -193,7 +193,7 @@ ipcMain.handle('lan:hostStart', async (event, args = {}) => {
 
       if (type === 'join_room') {
         try {
-          const { room, token, roomPassword } = msg
+          const { room, token, roomPassword, profile } = msg
           const payload = verifyJWT(token)
           const username = payload.username || payload.sub
 
@@ -226,18 +226,31 @@ ipcMain.handle('lan:hostStart', async (event, args = {}) => {
 
           roomState.clients.add(ws)
           ws.__lanRoom = room
-          ws.__lanUser = { userId: payload.sub, username, ip: ws.__lanIP || 'unknown' }
+          const safeProfile = profile && typeof profile === 'object'
+            ? { avatar_emoji: profile.avatar_emoji || '😊', status: profile.status || 'available', bio: profile.bio || '' }
+            : { avatar_emoji: '😊', status: 'available', bio: '' }
 
-          const existingMembers = [...roomState.clients]
+          ws.__lanUser = { userId: payload.sub, username, ip: ws.__lanIP || 'unknown', profile: safeProfile }
+
+          const existingMembersWithProfiles = [...roomState.clients]
             .filter((c) => c.__lanUser)
-            .map((c) => c.__lanUser.username)
-          ws.send(JSON.stringify({ type: 'join_room_ack', ok: true, room, members: existingMembers }))
+            .map((c) => ({ username: c.__lanUser.username, profile: c.__lanUser.profile || {} }))
+
+          ws.send(JSON.stringify({
+            type: 'join_room_ack',
+            ok: true,
+            room,
+            members: existingMembersWithProfiles.map((m) => m.username),
+            memberProfiles: existingMembersWithProfiles,
+            history: roomState.messages,
+          }))
 
           broadcastToRoom(room, {
             type: 'presence',
             room,
             action: 'join',
             user: { userId: payload.sub, username },
+            profile: safeProfile,
             at: new Date().toISOString(),
           })
         } catch (err) {
@@ -261,13 +274,11 @@ ipcMain.handle('lan:hostStart', async (event, args = {}) => {
           }
 
           const m = String(message)
-          broadcastToRoom(room, {
-            type: 'message',
-            room,
-            from: { userId: payload.sub, username },
-            message: m,
-            at: new Date().toISOString(),
-          })
+          const at = new Date().toISOString()
+          const entry = { from: { userId: payload.sub, username }, message: m, at }
+          roomState.messages.push(entry)
+          if (roomState.messages.length > 200) roomState.messages.shift()
+          broadcastToRoom(room, { type: 'message', room, ...entry })
 
           ws.send(JSON.stringify({ type: 'send_message_ack', ok: true }))
         } catch (err) {
@@ -296,6 +307,23 @@ ipcMain.handle('lan:hostStart', async (event, args = {}) => {
         } catch (err) {
           ws.send(JSON.stringify({ type: 'error', error: err?.message || 'Rename failed' }))
         }
+        return
+      }
+
+      if (type === 'profile_update') {
+        try {
+          const { room, token, profile } = msg
+          const payload = verifyJWT(token)
+          const username = payload.username || payload.sub
+          const roomState = lanRooms.get(room)
+          if (!roomState || !roomState.clients.has(ws)) return
+          broadcastToRoom(room, {
+            type: 'profile_updated',
+            username,
+            profile,
+            at: new Date().toISOString(),
+          })
+        } catch (_) {}
         return
       }
 
@@ -350,6 +378,7 @@ ipcMain.handle('lan:hostCreateRoom', async (event, args = {}) => {
     passwordHashHex,
     clients: new Set(),
     createdAt: new Date().toISOString(),
+    messages: [],
   })
 
   return { ok: true, room, protected: Boolean(passwordHashHex) }
@@ -357,7 +386,7 @@ ipcMain.handle('lan:hostCreateRoom', async (event, args = {}) => {
 
 ipcMain.handle('lan:clientJoin', async (event, args = {}) => {
   const wsLib = require('ws')
-  const { url, room, token, roomPassword } = args
+  const { url, room, token, roomPassword, profile } = args
 
   if (!url || !room || !token) {
     throw new Error('clientJoin requires { url, room, token }')
@@ -383,6 +412,7 @@ ipcMain.handle('lan:clientJoin', async (event, args = {}) => {
           room,
           token,
           roomPassword: roomPassword || null,
+          profile: profile || null,
         }),
       )
     })
@@ -398,7 +428,7 @@ ipcMain.handle('lan:clientJoin', async (event, args = {}) => {
       if (msg.type === 'join_room_ack') {
         if (!msg.ok) return reject(new Error(msg.error || 'join failed'))
         trySendToRenderer(msg)
-        return resolve({ ok: true, room, members: msg.members || [] })
+        return resolve({ ok: true, room, members: msg.members || [], memberProfiles: msg.memberProfiles || [], history: msg.history || [] })
       }
 
       // events de diffusion
@@ -466,6 +496,14 @@ ipcMain.handle('crash:reportRenderer', async (event, args = {}) => {
       processType: 'renderer',
     }),
   }).catch(() => {})
+})
+
+ipcMain.handle('lan:clientProfileUpdate', async (event, args = {}) => {
+  const { room, token, profile } = args
+  if (lanClientSocket && lanClientSocket.readyState === 1) {
+    lanClientSocket.send(JSON.stringify({ type: 'profile_update', room, token, profile }))
+  }
+  return { ok: true }
 })
 
 ipcMain.handle('lan:clientRename', async (event, args = {}) => {

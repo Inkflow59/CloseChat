@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { Box, Button, Stack, TextField, Typography } from '@mui/material'
 import type { NavigateFn } from './HomePage'
 import type { Room } from '../vite-env'
+import { getLocalProfile } from '../profileStorage'
 
 type Props = {
   navigate: NavigateFn
@@ -37,9 +38,17 @@ export default function RoomListPage({ navigate, rooms, localIP, username, token
         room: room.name,
         token,
         roomPassword: roomPassword || undefined,
+        profile: getLocalProfile(username),
       })
       setPasswordTarget(null)
-      navigate('chat', { room, token, localIP, initialMembers: result.members ?? [] })
+      navigate('chat', {
+        room,
+        token,
+        localIP,
+        initialMembers: result.members ?? [],
+        initialMessages: result.history ?? [],
+        initialProfiles: result.memberProfiles ?? [],
+      })
     } catch (err) {
       setJoinError(err instanceof Error ? err.message : 'Impossible de rejoindre le salon.')
     } finally {

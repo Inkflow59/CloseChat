@@ -3,63 +3,41 @@ const bcrypt = require('bcryptjs')
 const { pool } = require('./db')
 const { signAccessToken, requireAuth } = require('./jwt')
 
-function normalizeIdentifier(value) {
-  return String(value || '').trim().toLowerCase()
-}
-
 const router = express.Router()
 
 // POST /auth/signup
-// Body: { identifier: string (email ou pseudo), password: string }
 router.post('/signup', async (req, res) => {
   try {
-    const identifier =
-      normalizeIdentifier(req.body?.identifier || req.body?.email || req.body?.pseudo)
+    const rawId = String(req.body?.identifier || req.body?.email || req.body?.pseudo || '').trim()
     const password = String(req.body?.password || '')
 
-    if (!identifier || !password) {
+    if (!rawId || !password) {
       return res.status(400).json({ error: 'identifier and password are required' })
     }
 
-    // Petit heuristique : si l’utilisateur ressemble à un email => email, sinon pseudo.
-    const isEmail = identifier.includes('@')
+    const isEmail = rawId.includes('@')
+    const emailValue = isEmail ? rawId.toLowerCase() : null
+    const usernameValue = isEmail ? null : rawId
 
-    const client = pool
-    const existing = await client.query(
-      'SELECT id, email, username FROM users WHERE email = $1 OR username = $1 LIMIT 1',
-      [identifier],
+    const existing = await pool.query(
+      'SELECT id FROM users WHERE lower(email) = lower($1) OR lower(username) = lower($1) LIMIT 1',
+      [rawId],
     )
-
     if (existing.rows.length > 0) {
       return res.status(409).json({ error: 'Account already exists' })
     }
 
     const passwordHash = await bcrypt.hash(password, 12)
-
-    const emailValue = isEmail ? identifier : null
-    const usernameValue = isEmail ? null : identifier
-
-    const insert = await client.query(
-      `INSERT INTO users (email, username, password_hash)
-       VALUES ($1, $2, $3)
-       RETURNING id, email, username, created_at`,
+    const insert = await pool.query(
+      'INSERT INTO users (email, username, password_hash) VALUES ($1, $2, $3) RETURNING id, email, username, created_at',
       [emailValue, usernameValue, passwordHash],
     )
 
     const user = insert.rows[0]
-    const token = signAccessToken({
-      userId: user.id,
-      username: user.username || user.email,
-    })
-
+    const token = signAccessToken({ userId: user.id, username: user.username || user.email })
     return res.status(201).json({
       token,
-      user: {
-        id: user.id,
-        email: user.email,
-        username: user.username,
-        createdAt: user.created_at,
-      },
+      user: { id: user.id, email: user.email, username: user.username, createdAt: user.created_at },
     })
   } catch (err) {
     return res.status(500).json({ error: err?.message || 'Signup failed' })
@@ -67,21 +45,19 @@ router.post('/signup', async (req, res) => {
 })
 
 // POST /auth/login
-// Body: { identifier: string (email ou pseudo), password: string }
 router.post('/login', async (req, res) => {
   try {
-    const identifier = normalizeIdentifier(req.body?.identifier || req.body?.email || req.body?.pseudo)
+    const rawId = String(req.body?.identifier || req.body?.email || req.body?.pseudo || '').trim()
     const password = String(req.body?.password || '')
 
-    if (!identifier || !password) {
+    if (!rawId || !password) {
       return res.status(400).json({ error: 'identifier and password are required' })
     }
 
     const lookup = await pool.query(
-      'SELECT id, email, username, password_hash FROM users WHERE email = $1 OR username = $1 LIMIT 1',
-      [identifier],
+      'SELECT id, email, username, password_hash FROM users WHERE lower(email) = lower($1) OR lower(username) = lower($1) LIMIT 1',
+      [rawId],
     )
-
     if (lookup.rows.length === 0) {
       return res.status(401).json({ error: 'Invalid credentials' })
     }
@@ -90,34 +66,32 @@ router.post('/login', async (req, res) => {
     const ok = await bcrypt.compare(password, user.password_hash)
     if (!ok) return res.status(401).json({ error: 'Invalid credentials' })
 
-    const token = signAccessToken({
-      userId: user.id,
-      username: user.username || user.email,
-    })
-
+    const token = signAccessToken({ userId: user.id, username: user.username || user.email })
     return res.json({
       token,
-      user: {
-        id: user.id,
-        email: user.email,
-        username: user.username,
-      },
+      user: { id: user.id, email: user.email, username: user.username },
     })
   } catch (err) {
     return res.status(500).json({ error: err?.message || 'Login failed' })
   }
 })
 
-// PUT /auth/profile — change pseudo et/ou email
+// PUT /auth/profile
 router.put('/profile', requireAuth, async (req, res) => {
   try {
     const { username, email } = req.body
-    const userId = req.auth.userId
+    const id = req.auth.userId || req.auth.username
     if (username?.trim()) {
-      await pool.query('UPDATE users SET username=$1, updated_at=now() WHERE id=$2', [username.trim(), userId])
+      await pool.query(
+        'UPDATE users SET username=$1, updated_at=now() WHERE id::text = $2 OR username = $2',
+        [username.trim(), id],
+      )
     }
     if (email !== undefined) {
-      await pool.query('UPDATE users SET email=$1, updated_at=now() WHERE id=$2', [email.trim() || null, userId])
+      await pool.query(
+        'UPDATE users SET email=$1, updated_at=now() WHERE id::text = $2 OR username = $2',
+        [email.trim() || null, id],
+      )
     }
     return res.json({ ok: true })
   } catch (err) {
@@ -125,20 +99,26 @@ router.put('/profile', requireAuth, async (req, res) => {
   }
 })
 
-// PUT /auth/password — change le mot de passe
+// PUT /auth/password
 router.put('/password', requireAuth, async (req, res) => {
   try {
     const { currentPassword, newPassword } = req.body
-    const userId = req.auth.userId
+    const id = req.auth.userId || req.auth.username
     if (!currentPassword || !newPassword) {
-      return res.status(400).json({ error: 'currentPassword et newPassword sont requis.' })
+      return res.status(400).json({ error: 'currentPassword and newPassword are required' })
     }
-    const result = await pool.query('SELECT password_hash FROM users WHERE id=$1', [userId])
-    if (!result.rows[0]) return res.status(404).json({ error: 'Utilisateur introuvable.' })
+    const result = await pool.query(
+      'SELECT password_hash FROM users WHERE id::text = $1 OR username = $1 LIMIT 1',
+      [id],
+    )
+    if (!result.rows[0]) return res.status(404).json({ error: 'User not found' })
     const valid = await bcrypt.compare(currentPassword, result.rows[0].password_hash)
-    if (!valid) return res.status(401).json({ error: 'Mot de passe actuel incorrect.' })
+    if (!valid) return res.status(401).json({ error: 'Wrong current password' })
     const hash = await bcrypt.hash(newPassword, 12)
-    await pool.query('UPDATE users SET password_hash=$1, updated_at=now() WHERE id=$2', [hash, userId])
+    await pool.query(
+      'UPDATE users SET password_hash=$1, updated_at=now() WHERE id::text = $2 OR username = $2',
+      [hash, id],
+    )
     return res.json({ ok: true })
   } catch (err) {
     return res.status(500).json({ error: err?.message || 'Password update failed' })
@@ -146,4 +126,3 @@ router.put('/password', requireAuth, async (req, res) => {
 })
 
 module.exports = router
-

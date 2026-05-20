@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react'
 import { Box, Button, Stack, TextField, Typography } from '@mui/material'
 import type { NavigateFn } from './HomePage'
+import { getLocalProfile } from '../profileStorage'
 
 type Props = {
   navigate: NavigateFn
@@ -60,6 +61,7 @@ export default function CreateRoomPage({ navigate, localIP: ipProp, username, to
         room: roomName.trim(),
         token: jwtToken,
         roomPassword: password.trim() || undefined,
+        profile: getLocalProfile(username),
       })
 
       navigate('chat', {
@@ -74,6 +76,8 @@ export default function CreateRoomPage({ navigate, localIP: ipProp, username, to
         localIP,
         isHost: true,
         initialMembers: joinResult.members ?? [],
+        initialMessages: joinResult.history ?? [],
+        initialProfiles: joinResult.memberProfiles ?? [],
       })
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Une erreur est survenue.')

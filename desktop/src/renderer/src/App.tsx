@@ -20,6 +20,8 @@ export default function App() {
   const [currentRoom, setCurrentRoom] = useState<Room | null>(null)
   const [isHost, setIsHost] = useState(false)
   const [initialMembers, setInitialMembers] = useState<string[]>([])
+  const [initialMessages, setInitialMessages] = useState<{ from: { username: string }; message: string; at: string }[]>([])
+  const [initialProfiles, setInitialProfiles] = useState<{ username: string; profile: { avatar_emoji: string; status: string; bio: string } }[]>([])
 
   const navigate: NavigateFn = (next, data?) => {
     const d = data as Record<string, unknown> | undefined
@@ -45,6 +47,12 @@ export default function App() {
       if ('initialMembers' in d) {
         setInitialMembers((d.initialMembers as string[]) ?? [])
       }
+      if ('initialMessages' in d) {
+        setInitialMessages((d.initialMessages as { from: { username: string }; message: string; at: string }[]) ?? [])
+      }
+      if ('initialProfiles' in d) {
+        setInitialProfiles((d.initialProfiles as { username: string; profile: { avatar_emoji: string; status: string; bio: string } }[]) ?? [])
+      }
     }
     setRoute(next)
   }
@@ -64,6 +72,8 @@ export default function App() {
       localIP={roomsData.localIP}
       isHost={isHost}
       initialMembers={initialMembers}
+      initialMessages={initialMessages}
+      initialProfiles={initialProfiles}
       onUsernameChange={(newUsername, newToken) =>
         setUser({ username: newUsername, token: newToken })
       }

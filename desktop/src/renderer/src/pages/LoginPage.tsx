@@ -39,13 +39,17 @@ export default function LoginPage({ navigate }: Props) {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ identifier: id, password }),
       })
+      const data = await res.json().catch(() => ({}))
       if (res.ok) {
-        const data = await res.json()
         navigate('discover', { username: data.user?.username ?? id, token: data.token })
         return
       }
+      // L'API a répondu mais les identifiants sont incorrects → on n'utilise pas le fallback
+      setError(data.error || 'Identifiants incorrects.')
+      setLoading(false)
+      return
     } catch (_) {
-      // API indisponible → token local
+      // Vraie erreur réseau : API unreachable → token local
     }
 
     try {

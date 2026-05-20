@@ -1,3 +1,4 @@
+import { useState, useEffect } from 'react'
 import { Box, Button, Stack, Typography } from '@mui/material'
 import ChatBubbles from '../components/ChatBubbles'
 
@@ -10,6 +11,16 @@ type Props = {
 }
 
 export default function HomePage({ navigate }: Props) {
+  const [apiStatus, setApiStatus] = useState<'checking' | 'online' | 'offline'>('checking')
+
+  useEffect(() => {
+    const controller = new AbortController()
+    fetch('http://localhost:6767/health', { signal: controller.signal })
+      .then((r) => setApiStatus(r.ok ? 'online' : 'offline'))
+      .catch(() => setApiStatus('offline'))
+    return () => controller.abort()
+  }, [])
+
   return (
     <Box
       sx={{
@@ -111,6 +122,32 @@ export default function HomePage({ navigate }: Props) {
             >
               Pour les conversations entre nous
             </Typography>
+
+            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mt: 0.5 }}>
+              <Box
+                sx={{
+                  width: 8,
+                  height: 8,
+                  borderRadius: '50%',
+                  flexShrink: 0,
+                  bgcolor:
+                    apiStatus === 'checking' ? '#9ca3af'
+                    : apiStatus === 'online'  ? '#22c55e'
+                    :                           '#ef4444',
+                }}
+              />
+              <Typography
+                sx={{
+                  fontFamily: '"Caveat", system-ui, sans-serif',
+                  fontSize: 17,
+                  color: '#9ca3af',
+                }}
+              >
+                {apiStatus === 'checking' && 'Vérification du serveur…'}
+                {apiStatus === 'online'   && 'Connecté au serveur — profils et persistance actifs'}
+                {apiStatus === 'offline'  && 'Serveur hors ligne — mode local uniquement'}
+              </Typography>
+            </Box>
           </Stack>
 
           <Stack

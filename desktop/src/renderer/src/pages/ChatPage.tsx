@@ -1,7 +1,8 @@
 import { useState, useEffect, useRef } from 'react'
 import { Box, Stack, TextField, Typography } from '@mui/material'
 import type { NavigateFn } from './HomePage'
-import type { Room } from '../vite-env'
+import type { Room, Profile } from '../vite-env'
+import { getLocalProfile } from '../profileStorage'
 import AdminPanel from '../components/AdminPanel'
 import AccountPanel from '../components/AccountPanel'
 
@@ -13,6 +14,8 @@ type Props = {
   localIP: string
   isHost: boolean
   initialMembers: string[]
+  initialMessages: { from: { username: string }; message: string; at: string }[]
+  initialProfiles: { username: string; profile: { avatar_emoji: string; status: string; bio: string } }[]
   onUsernameChange: (newUsername: string, newToken: string) => void
 }
 
@@ -40,14 +43,36 @@ function SendIcon() {
   )
 }
 
-export default function ChatPage({ room, username, token, localIP, isHost, initialMembers, onUsernameChange }: Props) {
-  const [messages, setMessages] = useState<Message[]>([])
+export default function ChatPage({ room, username, token, localIP, isHost, initialMembers, initialMessages, initialProfiles, onUsernameChange }: Props) {
+  const [messages, setMessages] = useState<Message[]>(() =>
+    initialMessages.map((m) => ({
+      id: `hist-${m.at}-${m.from.username}`,
+      from: m.from.username,
+      text: m.message,
+    })),
+  )
   const [members, setMembers] = useState<string[]>(() => {
     const all = [username, ...initialMembers.filter((m) => m !== username)]
     return [...new Set(all)]
   })
   const [input, setInput] = useState('')
   const [showAdmin, setShowAdmin] = useState(false)
+  const [profiles, setProfiles] = useState<Record<string, Profile>>(() => {
+    const init: Record<string, Profile> = {}
+    // Propre profil depuis localStorage
+    const own = getLocalProfile(username)
+    init[username] = { username, avatar_emoji: own.avatar_emoji, status: own.status as Profile['status'], bio: own.bio }
+    // Profils des membres existants reçus via join_room_ack
+    for (const mp of initialProfiles) {
+      init[mp.username] = {
+        username: mp.username,
+        avatar_emoji: mp.profile?.avatar_emoji || '😊',
+        status: (mp.profile?.status as Profile['status']) || 'available',
+        bio: mp.profile?.bio || '',
+      }
+    }
+    return init
+  })
   const [showAccount, setShowAccount] = useState(false)
   const [currentRoom, setCurrentRoom] = useState<Room>(room)
   const bottomRef = useRef<HTMLDivElement>(null)
@@ -77,8 +102,20 @@ export default function ChatPage({ room, username, token, localIP, isHost, initi
 
       if (msg.type === 'presence') {
         const user = (msg.user as Record<string, string>) ?? {}
+        const incomingProfile = msg.profile as { avatar_emoji: string; status: string; bio: string } | null
         if (msg.action === 'join') {
           setMembers((prev) => [...new Set([...prev, user.username])])
+          if (incomingProfile) {
+            setProfiles((prev) => ({
+              ...prev,
+              [user.username]: {
+                username: user.username,
+                avatar_emoji: incomingProfile.avatar_emoji || '😊',
+                status: (incomingProfile.status as Profile['status']) || 'available',
+                bio: incomingProfile.bio || '',
+              },
+            }))
+          }
           if (user.username !== username) {
             notify('CloseChat — ' + currentRoom.name, `${user.username} a rejoint le salon`)
           }
@@ -96,6 +133,11 @@ export default function ChatPage({ room, username, token, localIP, isHost, initi
         if (oldUsername !== username) {
           notify('CloseChat', `${oldUsername} s'appelle maintenant ${newUsername}`)
         }
+      }
+
+      if (msg.type === 'profile_updated') {
+        const { username: u, profile } = msg as { username: string; profile: { avatar_emoji: string; status: string; bio: string } }
+        setProfiles((prev) => ({ ...prev, [u]: { username: u, avatar_emoji: profile.avatar_emoji, status: profile.status as 'available' | 'busy' | 'dnd', bio: profile.bio } }))
       }
     })
 
@@ -338,19 +380,29 @@ export default function ChatPage({ room, username, token, localIP, isHost, initi
             flexShrink: 0,
           }}
         >
-          <Stack spacing={0.6}>
-            {members.map((m) => (
-              <Typography
-                key={m}
-                sx={{
-                  fontFamily: '"Caveat", system-ui, sans-serif',
-                  fontSize: 18,
-                  color: '#374151',
-                }}
-              >
-                - {m}
-              </Typography>
-            ))}
+          <Stack spacing={0.8}>
+            {members.map((m) => {
+              const p = profiles[m]
+              const statusColor = p?.status === 'busy' ? '#f59e0b' : p?.status === 'dnd' ? '#ef4444' : '#22c55e'
+              return (
+                <Box key={m} sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                  <Box sx={{ position: 'relative', flexShrink: 0 }}>
+                    <Typography sx={{ fontSize: 20, lineHeight: 1 }}>{p?.avatar_emoji || '😊'}</Typography>
+                    <Box sx={{ position: 'absolute', bottom: -1, right: -1, width: 8, height: 8, borderRadius: '50%', bgcolor: statusColor, border: '1.5px solid #fdf7f2' }} />
+                  </Box>
+                  <Box sx={{ minWidth: 0 }}>
+                    <Typography sx={{ fontFamily: '"Caveat", system-ui, sans-serif', fontSize: 17, color: '#1f2933', lineHeight: 1.2, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                      {m}
+                    </Typography>
+                    {p?.bio ? (
+                      <Typography sx={{ fontFamily: '"Caveat", system-ui, sans-serif', fontSize: 13, color: '#9ca3af', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                        {p.bio}
+                      </Typography>
+                    ) : null}
+                  </Box>
+                </Box>
+              )
+            })}
           </Stack>
 
           <Box
@@ -385,6 +437,9 @@ export default function ChatPage({ room, username, token, localIP, isHost, initi
           onUsernameChange={(newUsername, newToken) => {
             onUsernameChange(newUsername, newToken)
             setShowAccount(false)
+          }}
+          onProfileSaved={(profile) => {
+            setProfiles((prev) => ({ ...prev, [username]: profile }))
           }}
         />
       )}

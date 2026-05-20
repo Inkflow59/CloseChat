@@ -2,6 +2,7 @@ const express = require('express');
 const cors = require('cors');
 const crashRoutes = require('./crashRoutes');
 const authRoutes = require('./authRoutes');
+const profileRoutes = require('./profileRoutes');
 
 const app = express();
 
@@ -19,6 +20,9 @@ app.get('/health', (req, res) => {
 
 // Auth centralisée (comptes CloseChat)
 app.use('/auth', authRoutes);
+
+// Profils utilisateurs
+app.use('/profile', profileRoutes);
 
 // Crash reporter (self-hosted)
 app.use(crashRoutes);
