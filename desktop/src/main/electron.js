@@ -203,7 +203,7 @@ function createWindow({ devUrl, isDev }) {
 }
 
 app.whenReady().then(async () => {
-  const isDev = process.env.NODE_ENV !== 'production'
+  const isDev = !app.isPackaged && process.env.NODE_ENV !== 'production'
   const devUrl = process.env.ELECTRON_RENDERER_URL || 'http://localhost:5173'
 
   if (isDev) {
@@ -224,13 +224,13 @@ function sha256Hex(input) {
   return createHash('sha256').update(String(input)).digest('hex')
 }
 
-function verifyJWT(token) {
+function verifyJWT(token, publicKeyOverride) {
   const jwt = require('jsonwebtoken')
-  const { publicKey } = getJwtKeys()
-  if (!publicKey) {
+  const key = publicKeyOverride || getJwtKeys().publicKey
+  if (!key) {
     throw new Error('JWT_PUBLIC_KEY manquant (pour le LAN).')
   }
-  return jwt.verify(token, publicKey, { algorithms: ['RS256'] })
+  return jwt.verify(token, key, { algorithms: ['RS256'] })
 }
 
 function broadcastToRoom(room, payload) {
@@ -280,8 +280,9 @@ ipcMain.handle('lan:hostStart', async (event, args = {}) => {
 
       if (type === 'join_room') {
         try {
-          const { room, token, roomPassword, profile } = msg
-          const payload = verifyJWT(token)
+          const { room, token, roomPassword, profile, clientPublicKey } = msg
+          const payload = verifyJWT(token, clientPublicKey || undefined)
+          ws.__clientPublicKey = clientPublicKey || null
           const username = payload.username || payload.sub
 
           if (!room) return ws.send(JSON.stringify({ type: 'join_room_ack', ok: false, error: 'Missing room' }))
@@ -349,7 +350,7 @@ ipcMain.handle('lan:hostStart', async (event, args = {}) => {
       if (type === 'send_message') {
         try {
           const { room, token, message } = msg
-          const payload = verifyJWT(token)
+          const payload = verifyJWT(token, ws.__clientPublicKey || undefined)
           const username = payload.username || payload.sub
 
           if (!room || !message) {
@@ -377,7 +378,7 @@ ipcMain.handle('lan:hostStart', async (event, args = {}) => {
       if (type === 'user_rename') {
         try {
           const { room, token, newUsername } = msg
-          const payload = verifyJWT(token)
+          const payload = verifyJWT(token, ws.__clientPublicKey || undefined)
           if (!newUsername?.trim()) return
           const roomState = lanRooms.get(room)
           if (!roomState || !roomState.clients.has(ws)) return
@@ -493,6 +494,7 @@ ipcMain.handle('lan:clientJoin', async (event, args = {}) => {
 
   return await new Promise((resolve, reject) => {
     socket.on('open', () => {
+      const { publicKey: clientPublicKey } = getJwtKeys()
       socket.send(
         JSON.stringify({
           type: 'join_room',
@@ -500,6 +502,7 @@ ipcMain.handle('lan:clientJoin', async (event, args = {}) => {
           token,
           roomPassword: roomPassword || null,
           profile: profile || null,
+          clientPublicKey: clientPublicKey || null,
         }),
       )
     })

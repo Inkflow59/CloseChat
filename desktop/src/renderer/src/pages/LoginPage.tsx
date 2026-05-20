@@ -77,10 +77,13 @@ export default function LoginPage({ navigate }: Props) {
       const data = await res.json().catch(() => ({}))
       if (res.ok) {
         const username = data.user?.username ?? id
-        const token = data.token
+        const apiToken = data.token
         // Sync du profil avant de naviguer (timeout 1s pour ne pas bloquer)
-        await syncProfileOnLogin(username, token)
-        navigate('discover', { username, token })
+        await syncProfileOnLogin(username, apiToken)
+        // Le token API est signé par le serveur Express, pas par la clé locale Electron.
+        // Pour le LAN, on génère toujours un token signé localement.
+        const { token: lanToken } = await window.closechatLan.signLocalToken({ username })
+        navigate('discover', { username, token: lanToken })
         return
       }
       // L'API a répondu mais les identifiants sont incorrects → on n'utilise pas le fallback
