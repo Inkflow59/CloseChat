@@ -55,7 +55,20 @@ export default function App() {
   if (route === 'discover') return <DiscoveryPage navigate={navigate} />
   if (route === 'create-room') return <CreateRoomPage navigate={navigate} localIP={roomsData.localIP} username={user.username} token={user.token} />
   if (route === 'room-list') return <RoomListPage navigate={navigate} rooms={roomsData.rooms} localIP={roomsData.localIP} username={user.username} token={user.token} />
-  if (route === 'chat' && currentRoom) return <ChatPage navigate={navigate} room={currentRoom} username={user.username} token={user.token} localIP={roomsData.localIP} isHost={isHost} initialMembers={initialMembers} />
+  if (route === 'chat' && currentRoom) return (
+    <ChatPage
+      navigate={navigate}
+      room={currentRoom}
+      username={user.username}
+      token={user.token}
+      localIP={roomsData.localIP}
+      isHost={isHost}
+      initialMembers={initialMembers}
+      onUsernameChange={(newUsername, newToken) =>
+        setUser({ username: newUsername, token: newToken })
+      }
+    />
+  )
 
   return <HomePage navigate={navigate} />
 }

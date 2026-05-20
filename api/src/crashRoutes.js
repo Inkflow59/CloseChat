@@ -26,6 +26,9 @@ function getUserIdFromAuthHeader(req) {
 
 router.post('/crash', upload.any(), async (req, res) => {
   try {
+    // Supporte JSON (envois depuis le process main/renderer) et multipart (Crashpad natif).
+    const body = req.body || {}
+
     const maybeUserId = (() => {
       try {
         return getUserIdFromAuthHeader(req)
@@ -35,19 +38,14 @@ router.post('/crash', upload.any(), async (req, res) => {
     })()
 
     const exception =
-      req.body?.exception ||
-      req.body?.exception_string ||
-      req.body?.stack ||
-      req.body?.reason ||
-      null
+      body.exception || body.exception_string || body.stack || body.reason || null
 
-    const stack = req.body?.stack || req.body?.stack_trace || null
+    const stack = body.stack || body.stack_trace || null
 
-    const crashId =
-      req.body?.crash_id || req.body?.crashId || req.body?.upload_file_identifier || null
+    const crashId = body.crash_id || body.crashId || body.upload_file_identifier || null
 
     const raw = {
-      body: req.body || {},
+      body,
       files: (req.files || []).map((f) => ({
         fieldname: f.fieldname,
         originalname: f.originalname,
@@ -61,8 +59,8 @@ router.post('/crash', upload.any(), async (req, res) => {
        VALUES ($1, $2, $3, $4, $5, $6, $7)`,
       [
         maybeUserId,
-        req.body?.appVersion || req.body?.app_version || null,
-        req.body?.platform || null,
+        body.appVersion || body.app_version || null,
+        body.platform || null,
         exception,
         stack,
         crashId,

@@ -29,6 +29,7 @@ declare global {
         port?: number
         connectTimeoutMs?: number
       }) => Promise<{ rooms: Room[]; localIP: string }>
+      clientRename: (args: { newUsername: string; room: string; token: string }) => Promise<{ ok: boolean }>
       hostGetRoomDetails: (args: { room: string }) => Promise<{ members: { userId: string; username: string; ip: string }[] }>
       hostKickClient: (args: { room: string; userId: string }) => Promise<{ ok: boolean }>
       hostBanClient: (args: { room: string; userId: string }) => Promise<{ ok: boolean }>

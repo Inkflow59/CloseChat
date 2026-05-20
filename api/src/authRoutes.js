@@ -1,7 +1,7 @@
 const express = require('express')
 const bcrypt = require('bcryptjs')
 const { pool } = require('./db')
-const { signAccessToken } = require('./jwt')
+const { signAccessToken, requireAuth } = require('./jwt')
 
 function normalizeIdentifier(value) {
   return String(value || '').trim().toLowerCase()
@@ -105,6 +105,43 @@ router.post('/login', async (req, res) => {
     })
   } catch (err) {
     return res.status(500).json({ error: err?.message || 'Login failed' })
+  }
+})
+
+// PUT /auth/profile — change pseudo et/ou email
+router.put('/profile', requireAuth, async (req, res) => {
+  try {
+    const { username, email } = req.body
+    const userId = req.auth.userId
+    if (username?.trim()) {
+      await pool.query('UPDATE users SET username=$1, updated_at=now() WHERE id=$2', [username.trim(), userId])
+    }
+    if (email !== undefined) {
+      await pool.query('UPDATE users SET email=$1, updated_at=now() WHERE id=$2', [email.trim() || null, userId])
+    }
+    return res.json({ ok: true })
+  } catch (err) {
+    return res.status(500).json({ error: err?.message || 'Update failed' })
+  }
+})
+
+// PUT /auth/password — change le mot de passe
+router.put('/password', requireAuth, async (req, res) => {
+  try {
+    const { currentPassword, newPassword } = req.body
+    const userId = req.auth.userId
+    if (!currentPassword || !newPassword) {
+      return res.status(400).json({ error: 'currentPassword et newPassword sont requis.' })
+    }
+    const result = await pool.query('SELECT password_hash FROM users WHERE id=$1', [userId])
+    if (!result.rows[0]) return res.status(404).json({ error: 'Utilisateur introuvable.' })
+    const valid = await bcrypt.compare(currentPassword, result.rows[0].password_hash)
+    if (!valid) return res.status(401).json({ error: 'Mot de passe actuel incorrect.' })
+    const hash = await bcrypt.hash(newPassword, 12)
+    await pool.query('UPDATE users SET password_hash=$1, updated_at=now() WHERE id=$2', [hash, userId])
+    return res.json({ ok: true })
+  } catch (err) {
+    return res.status(500).json({ error: err?.message || 'Password update failed' })
   }
 })
 

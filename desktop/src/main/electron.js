@@ -49,6 +49,36 @@ if (enableCrashReporting) {
       platform: process.platform,
     },
   })
+
+  // Capture les exceptions JS non catchées dans le process principal.
+  process.on('uncaughtException', (err) => {
+    fetch(crashSubmitURL, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        exception: err?.message || String(err),
+        stack: err?.stack || '',
+        platform: process.platform,
+        appVersion: app.getVersion(),
+        processType: 'main',
+      }),
+    }).catch(() => {})
+  })
+
+  process.on('unhandledRejection', (reason) => {
+    const err = reason instanceof Error ? reason : new Error(String(reason))
+    fetch(crashSubmitURL, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        exception: err.message,
+        stack: err.stack || '',
+        platform: process.platform,
+        appVersion: app.getVersion(),
+        processType: 'main-unhandledRejection',
+      }),
+    }).catch(() => {})
+  })
 }
 
 async function waitForDevServer(url, timeoutMs = 20000, intervalMs = 250) {
@@ -246,6 +276,29 @@ ipcMain.handle('lan:hostStart', async (event, args = {}) => {
         return
       }
 
+      if (type === 'user_rename') {
+        try {
+          const { room, token, newUsername } = msg
+          const payload = verifyJWT(token)
+          if (!newUsername?.trim()) return
+          const roomState = lanRooms.get(room)
+          if (!roomState || !roomState.clients.has(ws)) return
+          const oldUsername = ws.__lanUser?.username
+          ws.__lanUser = { ...ws.__lanUser, username: newUsername.trim() }
+          broadcastToRoom(room, {
+            type: 'user_renamed',
+            room,
+            oldUsername,
+            newUsername: newUsername.trim(),
+            userId: payload.sub,
+            at: new Date().toISOString(),
+          })
+        } catch (err) {
+          ws.send(JSON.stringify({ type: 'error', error: err?.message || 'Rename failed' }))
+        }
+        return
+      }
+
       if (type === 'list_rooms') {
         const rooms = []
         for (const [roomName, roomState] of lanRooms.entries()) {
@@ -375,6 +428,30 @@ ipcMain.handle('lan:clientSendMessage', async (event, args = {}) => {
     }),
   )
 
+  return { ok: true }
+})
+
+ipcMain.handle('crash:reportRenderer', async (event, args = {}) => {
+  if (!enableCrashReporting) return
+  fetch(crashSubmitURL, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      exception: args.exception || 'Unknown renderer error',
+      stack: args.stack || '',
+      source: args.source || '',
+      platform: process.platform,
+      appVersion: app.getVersion(),
+      processType: 'renderer',
+    }),
+  }).catch(() => {})
+})
+
+ipcMain.handle('lan:clientRename', async (event, args = {}) => {
+  const { newUsername, room, token } = args
+  if (lanClientSocket && lanClientSocket.readyState === 1) {
+    lanClientSocket.send(JSON.stringify({ type: 'user_rename', room, token, newUsername }))
+  }
   return { ok: true }
 })
 

@@ -165,6 +165,39 @@ export default function RoomListPage({ navigate, rooms, localIP, username, token
               {room.protected && <LockIcon />}
             </Box>
           ))}
+
+          {/* Section créer son propre salon */}
+          <Box sx={{ pt: 1.5, borderTop: '1px solid rgba(229,231,235,0.9)', textAlign: 'center' }}>
+            <Typography
+              sx={{
+                fontFamily: '"Caveat", system-ui, sans-serif',
+                fontSize: { xs: 18, sm: 22 },
+                color: '#6b7280',
+                mb: 1.5,
+              }}
+            >
+              Flemme de parler à ces gens là ? Je comprends. Créé TON salon alors !
+            </Typography>
+            <Button
+              variant="outlined"
+              onClick={() => navigate('create-room', { localIP, rooms: [] })}
+              sx={{
+                fontFamily: '"Caveat", system-ui, sans-serif',
+                textTransform: 'none',
+                fontSize: 22,
+                px: 5,
+                py: 1,
+                borderRadius: 3,
+                borderColor: '#1f2933',
+                borderWidth: '2px',
+                color: '#1f2933',
+                backgroundColor: '#ffffff',
+                '&:hover': { backgroundColor: '#f9fafb', borderColor: '#374151', borderWidth: '2px' },
+              }}
+            >
+              Créer un salon
+            </Button>
+          </Box>
         </Stack>
       </Box>
 

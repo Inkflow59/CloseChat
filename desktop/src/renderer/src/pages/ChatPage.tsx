@@ -3,6 +3,7 @@ import { Box, Stack, TextField, Typography } from '@mui/material'
 import type { NavigateFn } from './HomePage'
 import type { Room } from '../vite-env'
 import AdminPanel from '../components/AdminPanel'
+import AccountPanel from '../components/AccountPanel'
 
 type Props = {
   navigate: NavigateFn
@@ -12,6 +13,7 @@ type Props = {
   localIP: string
   isHost: boolean
   initialMembers: string[]
+  onUsernameChange: (newUsername: string, newToken: string) => void
 }
 
 type Message = {
@@ -38,7 +40,7 @@ function SendIcon() {
   )
 }
 
-export default function ChatPage({ room, username, token, localIP, isHost, initialMembers }: Props) {
+export default function ChatPage({ room, username, token, localIP, isHost, initialMembers, onUsernameChange }: Props) {
   const [messages, setMessages] = useState<Message[]>([])
   const [members, setMembers] = useState<string[]>(() => {
     const all = [username, ...initialMembers.filter((m) => m !== username)]
@@ -46,6 +48,7 @@ export default function ChatPage({ room, username, token, localIP, isHost, initi
   })
   const [input, setInput] = useState('')
   const [showAdmin, setShowAdmin] = useState(false)
+  const [showAccount, setShowAccount] = useState(false)
   const [currentRoom, setCurrentRoom] = useState<Room>(room)
   const bottomRef = useRef<HTMLDivElement>(null)
 
@@ -72,6 +75,11 @@ export default function ChatPage({ room, username, token, localIP, isHost, initi
         } else if (msg.action === 'leave') {
           setMembers((prev) => prev.filter((m) => m !== user.username))
         }
+      }
+
+      if (msg.type === 'user_renamed') {
+        const { oldUsername, newUsername } = msg as Record<string, string>
+        setMembers((prev) => prev.map((m) => (m === oldUsername ? newUsername : m)))
       }
     })
 
@@ -329,26 +337,41 @@ export default function ChatPage({ room, username, token, localIP, isHost, initi
             ))}
           </Stack>
 
-          <Typography
+          <Box
+            onClick={() => setShowAccount(true)}
             sx={{
-              fontFamily: '"Caveat", system-ui, sans-serif',
-              fontSize: 16,
-              color: '#6b7280',
               textAlign: 'center',
-              lineHeight: 1.4,
+              cursor: 'pointer',
+              borderRadius: 2,
+              px: 1,
+              py: 0.5,
+              transition: 'background 0.12s',
+              '&:hover': { bgcolor: 'rgba(178,90,51,0.07)' },
             }}
           >
-            Connecté en tant que
-            <br />
-            <Box
-              component="span"
-              sx={{ fontFamily: '"Caveat", system-ui, sans-serif', color: '#374151', fontSize: 18 }}
-            >
+            <Typography sx={{ fontFamily: '"Caveat", system-ui, sans-serif', fontSize: 16, color: '#6b7280', lineHeight: 1.4 }}>
+              Connecté en tant que
+            </Typography>
+            <Typography sx={{ fontFamily: '"Caveat", system-ui, sans-serif', fontSize: 18, color: '#374151' }}>
               {username}
-            </Box>
-          </Typography>
+            </Typography>
+          </Box>
         </Box>
       </Box>
+
+      {showAccount && (
+        <AccountPanel
+          username={username}
+          localIP={localIP}
+          room={currentRoom}
+          token={token}
+          onClose={() => setShowAccount(false)}
+          onUsernameChange={(newUsername, newToken) => {
+            onUsernameChange(newUsername, newToken)
+            setShowAccount(false)
+          }}
+        />
+      )}
 
       {showAdmin && (
         <AdminPanel
