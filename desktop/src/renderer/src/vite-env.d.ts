@@ -22,7 +22,7 @@ declare global {
         room: string
         token: string
         roomPassword?: string
-      }) => Promise<{ ok: boolean; room: string }>
+      }) => Promise<{ ok: boolean; room: string; members: string[] }>
       clientSendMessage: (args: { room?: string; token: string; message: string }) => Promise<{ ok: boolean }>
       getLocalIP: () => Promise<{ ip: string }>
       discoverAndListRooms: (args?: {

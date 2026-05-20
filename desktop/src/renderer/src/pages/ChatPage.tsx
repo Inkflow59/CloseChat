@@ -10,6 +10,8 @@ type Props = {
   username: string
   token: string
   localIP: string
+  isHost: boolean
+  initialMembers: string[]
 }
 
 type Message = {
@@ -36,9 +38,12 @@ function SendIcon() {
   )
 }
 
-export default function ChatPage({ room, username, token, localIP }: Props) {
+export default function ChatPage({ room, username, token, localIP, isHost, initialMembers }: Props) {
   const [messages, setMessages] = useState<Message[]>([])
-  const [members, setMembers] = useState<string[]>([username])
+  const [members, setMembers] = useState<string[]>(() => {
+    const all = [username, ...initialMembers.filter((m) => m !== username)]
+    return [...new Set(all)]
+  })
   const [input, setInput] = useState('')
   const [showAdmin, setShowAdmin] = useState(false)
   const [currentRoom, setCurrentRoom] = useState<Room>(room)
@@ -47,11 +52,6 @@ export default function ChatPage({ room, username, token, localIP }: Props) {
   useEffect(() => {
     window.closechatLan.onMessage((raw) => {
       const msg = raw as Record<string, unknown>
-
-      if (msg.type === 'join_room_ack' && msg.ok) {
-        const incoming = (msg.members as string[]) ?? []
-        setMembers([username, ...incoming.filter((m) => m !== username)])
-      }
 
       if (msg.type === 'message') {
         const from = msg.from as Record<string, string>
@@ -124,28 +124,26 @@ export default function ChatPage({ room, username, token, localIP }: Props) {
           CloseChat
         </Typography>
 
-        <Box
-          onClick={() => setShowAdmin(true)}
-          sx={{
-            border: '2px solid rgba(255,255,255,0.7)',
-            borderRadius: 2,
-            px: 3,
-            py: 0.5,
-            cursor: 'pointer',
-            userSelect: 'none',
-            '&:hover': { bgcolor: 'rgba(255,255,255,0.15)' },
-          }}
-        >
-          <Typography
+        {isHost ? (
+          <Box
+            onClick={() => setShowAdmin(true)}
             sx={{
-              fontFamily: '"Caveat", system-ui, sans-serif',
-              fontSize: 20,
-              color: '#ffffff',
+              border: '2px solid rgba(255,255,255,0.7)',
+              borderRadius: 2,
+              px: 3,
+              py: 0.5,
+              cursor: 'pointer',
+              userSelect: 'none',
+              '&:hover': { bgcolor: 'rgba(255,255,255,0.15)' },
             }}
           >
-            Administrer le salon
-          </Typography>
-        </Box>
+            <Typography sx={{ fontFamily: '"Caveat", system-ui, sans-serif', fontSize: 20, color: '#ffffff' }}>
+              Administrer le salon
+            </Typography>
+          </Box>
+        ) : (
+          <Box />
+        )}
 
         <Typography
           sx={{

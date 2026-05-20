@@ -32,14 +32,14 @@ export default function RoomListPage({ navigate, rooms, localIP, username, token
     setJoiningRoom(room.name)
     setJoinError('')
     try {
-      await window.closechatLan.clientJoin({
+      const result = await window.closechatLan.clientJoin({
         url: `ws://${room.host}:${room.port}`,
         room: room.name,
         token,
         roomPassword: roomPassword || undefined,
       })
       setPasswordTarget(null)
-      navigate('chat', { room, token, localIP })
+      navigate('chat', { room, token, localIP, initialMembers: result.members ?? [] })
     } catch (err) {
       setJoinError(err instanceof Error ? err.message : 'Impossible de rejoindre le salon.')
     } finally {

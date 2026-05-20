@@ -55,7 +55,7 @@ export default function CreateRoomPage({ navigate, localIP: ipProp, username, to
       })
 
       // Le créateur rejoint directement son propre salon
-      await window.closechatLan.clientJoin({
+      const joinResult = await window.closechatLan.clientJoin({
         url: 'ws://127.0.0.1:5050',
         room: roomName.trim(),
         token: jwtToken,
@@ -72,6 +72,8 @@ export default function CreateRoomPage({ navigate, localIP: ipProp, username, to
         },
         token: jwtToken,
         localIP,
+        isHost: true,
+        initialMembers: joinResult.members ?? [],
       })
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Une erreur est survenue.')

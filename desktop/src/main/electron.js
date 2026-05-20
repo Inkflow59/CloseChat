@@ -345,7 +345,7 @@ ipcMain.handle('lan:clientJoin', async (event, args = {}) => {
       if (msg.type === 'join_room_ack') {
         if (!msg.ok) return reject(new Error(msg.error || 'join failed'))
         trySendToRenderer(msg)
-        return resolve({ ok: true, room })
+        return resolve({ ok: true, room, members: msg.members || [] })
       }
 
       // events de diffusion

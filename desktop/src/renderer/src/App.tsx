@@ -18,6 +18,8 @@ export default function App() {
   })
   const [user, setUser] = useState({ username: '', token: '' })
   const [currentRoom, setCurrentRoom] = useState<Room | null>(null)
+  const [isHost, setIsHost] = useState(false)
+  const [initialMembers, setInitialMembers] = useState<string[]>([])
 
   const navigate: NavigateFn = (next, data?) => {
     const d = data as Record<string, unknown> | undefined
@@ -37,6 +39,12 @@ export default function App() {
       if ('room' in d) {
         setCurrentRoom(d.room as Room)
       }
+      if ('isHost' in d) {
+        setIsHost(Boolean(d.isHost))
+      }
+      if ('initialMembers' in d) {
+        setInitialMembers((d.initialMembers as string[]) ?? [])
+      }
     }
     setRoute(next)
   }
@@ -47,7 +55,7 @@ export default function App() {
   if (route === 'discover') return <DiscoveryPage navigate={navigate} />
   if (route === 'create-room') return <CreateRoomPage navigate={navigate} localIP={roomsData.localIP} username={user.username} token={user.token} />
   if (route === 'room-list') return <RoomListPage navigate={navigate} rooms={roomsData.rooms} localIP={roomsData.localIP} username={user.username} token={user.token} />
-  if (route === 'chat' && currentRoom) return <ChatPage navigate={navigate} room={currentRoom} username={user.username} token={user.token} localIP={roomsData.localIP} />
+  if (route === 'chat' && currentRoom) return <ChatPage navigate={navigate} room={currentRoom} username={user.username} token={user.token} localIP={roomsData.localIP} isHost={isHost} initialMembers={initialMembers} />
 
   return <HomePage navigate={navigate} />
 }
