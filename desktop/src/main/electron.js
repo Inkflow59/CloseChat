@@ -1,6 +1,11 @@
 const { app, BrowserWindow, crashReporter, ipcMain, Notification, Tray, Menu, dialog, nativeImage } = require('electron')
 const path = require('path')
 
+function getResourcePath(filename) {
+  if (app.isPackaged) return path.join(process.resourcesPath, filename)
+  return path.join(__dirname, '..', '..', 'resources', filename)
+}
+
 const enableCrashReporting = process.env.CRASH_REPORTING_ENABLED !== 'false'
 const crashSubmitURL =
   process.env.CRASH_REPORT_SUBMIT_URL || 'http://localhost:6767/crash'
@@ -53,6 +58,7 @@ function getJwtKeys() {
 
 let mainWindow = null
 let tray = null
+let isQuitting = false
 let lanServer = null
 let lanRooms = new Map() // roomName -> { passwordHashHex: string|null, clients: Set<WebSocket>, createdAt }
 let lanServerPort = null
@@ -119,12 +125,11 @@ async function waitForDevServer(url, timeoutMs = 20000, intervalMs = 250) {
 }
 
 function getTrayIcon() {
-  const iconPath = path.join(__dirname, '..', '..', '..', 'resources', 'tray.png')
   try {
-    return nativeImage.createFromPath(iconPath)
-  } catch (_) {
-    return nativeImage.createEmpty()
-  }
+    const img = nativeImage.createFromPath(getResourcePath('tray.png'))
+    if (!img.isEmpty()) return img
+  } catch (_) {}
+  return nativeImage.createEmpty()
 }
 
 function setupTray() {
@@ -153,7 +158,7 @@ function setupTray() {
       },
     },
     { type: 'separator' },
-    { label: 'Quitter', click: () => app.quit() },
+    { label: 'Quitter', click: () => { isQuitting = true; app.quit() } },
   ])
 
   tray.setContextMenu(buildMenu())
@@ -167,7 +172,7 @@ function setupTray() {
 }
 
 function createWindow({ devUrl, isDev }) {
-  const iconPath = path.join(__dirname, '..', '..', '..', 'resources', 'icon.ico')
+  const iconPath = getResourcePath('icon.ico')
   const win = new BrowserWindow({
     width: 1100,
     height: 720,
@@ -182,7 +187,7 @@ function createWindow({ devUrl, isDev }) {
 
   // Minimiser dans le tray au lieu de fermer
   win.on('close', (e) => {
-    if (tray) {
+    if (tray && !isQuitting) {
       e.preventDefault()
       win.hide()
     }
@@ -813,7 +818,7 @@ ipcMain.handle('app:setAutoStart', (event, { enabled }) => {
         },
       },
       { type: 'separator' },
-      { label: 'Quitter', click: () => app.quit() },
+      { label: 'Quitter', click: () => { isQuitting = true; app.quit() } },
     ])
     tray.setContextMenu(buildMenu())
   }

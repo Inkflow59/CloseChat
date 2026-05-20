@@ -63,18 +63,24 @@ export default function AboutPage({ navigate }: Props) {
         </Box>
 
         <Stack spacing={{ xs: 3, md: 4 }} sx={{ position: 'relative', zIndex: 1 }}>
-          <Typography
-            component="h1"
-            sx={{
-              fontFamily: '"Caveat", system-ui, sans-serif',
-              fontSize: { xs: 40, md: 56 },
-              lineHeight: 1,
-              color: '#111827',
-              textAlign: 'center',
-            }}
-          >
-            À propos
-          </Typography>
+          <Box sx={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 1 }}>
+            <Box component="img" src="./icon.png" alt="CloseChat" sx={{ width: 64, height: 64, borderRadius: 2.5 }} />
+            <Typography
+              component="h1"
+              sx={{
+                fontFamily: '"Caveat", system-ui, sans-serif',
+                fontSize: { xs: 40, md: 56 },
+                lineHeight: 1,
+                color: '#111827',
+                textAlign: 'center',
+              }}
+            >
+              CloseChat
+            </Typography>
+            <Typography sx={{ fontFamily: '"Caveat", system-ui, sans-serif', fontSize: 18, color: '#9ca3af' }}>
+              v{__APP_VERSION__}
+            </Typography>
+          </Box>
 
           <Stack spacing={2.5}>
             <Typography

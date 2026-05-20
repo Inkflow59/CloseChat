@@ -38,6 +38,9 @@
       "node_modules/**/*",
       "package.json"
     ],
+    "extraResources": [
+      { "from": "resources", "to": ".", "filter": ["*.png", "*.ico"] }
+    ],
     "win": {
       "icon": "resources/icon.ico",
       "target": [

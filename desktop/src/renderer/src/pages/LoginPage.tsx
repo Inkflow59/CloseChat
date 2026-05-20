@@ -133,7 +133,7 @@ export default function LoginPage({ navigate }: Props) {
         }}
       >
         <Box sx={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 0.5 }}>
-          <Box component="img" src="/icon.png" alt="CloseChat" sx={{ width: 72, height: 72, borderRadius: 3, mb: 0.5 }} />
+          <Box component="img" src="./icon.png" alt="CloseChat" sx={{ width: 72, height: 72, borderRadius: 3, mb: 0.5 }} />
           <Typography sx={{ fontFamily: '"Caveat", system-ui, sans-serif', fontSize: 30, color: '#374151', lineHeight: 1.2 }}>
             Bienvenue sur
           </Typography>

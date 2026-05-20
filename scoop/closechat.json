@@ -6,7 +6,7 @@
   "architecture": {
     "64bit": {
       "url": "https://github.com/Inkflow59/CloseChat/releases/download/v1.0.0/CloseChat-1.0.0-win.zip",
-      "hash": "REMPLACER_PAR_LE_SHA256_APRES_BUILD"
+      "hash": "9d1afb44f13f348af7bc6be40124a48fcb1981e4367d2060f0583565c7b8df68"
     }
   },
   "extract_dir": "win-unpacked",

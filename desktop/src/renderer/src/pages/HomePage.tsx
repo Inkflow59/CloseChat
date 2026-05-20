@@ -103,7 +103,7 @@ export default function HomePage({ navigate }: Props) {
         >
           <Stack spacing={1} sx={{ textAlign: { xs: 'center', md: 'left' } }}>
             <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
-              <Box component="img" src="/icon.png" alt="CloseChat" sx={{ width: 64, height: 64, borderRadius: 2.5, flexShrink: 0 }} />
+              <Box component="img" src="./icon.png" alt="CloseChat" sx={{ width: 64, height: 64, borderRadius: 2.5, flexShrink: 0 }} />
               <Typography
                 component="h1"
                 sx={{
@@ -240,6 +240,9 @@ export default function HomePage({ navigate }: Props) {
           />
         </Box>
       </Box>
+      <Typography sx={{ position: 'fixed', bottom: 12, right: 16, fontFamily: '"Caveat", system-ui, sans-serif', fontSize: 14, color: 'rgba(156,163,175,0.7)', pointerEvents: 'none' }}>
+        v{__APP_VERSION__}
+      </Typography>
     </Box>
   )
 }

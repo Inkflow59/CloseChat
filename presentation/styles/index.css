@@ -1,0 +1,72 @@
+@import url('https://fonts.googleapis.com/css2?family=Caveat:wght@400;600;700&display=swap');
+
+.slidev-layout {
+  background: #fdf7f2 !important;
+  background-image:
+    radial-gradient(circle at left bottom, rgba(218,233,221,0.92), transparent 55%),
+    radial-gradient(circle at right top, rgba(242,223,215,0.88), transparent 60%) !important;
+  color: #1f2933 !important;
+  font-family: 'Caveat', system-ui, sans-serif !important;
+}
+
+h1, h2, h3, h4, p, li, td, th, span, div {
+  font-family: 'Caveat', system-ui, sans-serif !important;
+}
+
+h1 { color: #1f2933; }
+h2 { color: #374151; }
+h3 { color: #b25a33; }
+
+.chip {
+  display: inline-block;
+  padding: 4px 14px;
+  border-radius: 999px;
+  font-size: 1rem;
+  font-family: 'Caveat', sans-serif !important;
+  background: rgba(178,90,51,0.12);
+  color: #b25a33;
+  border: 1.5px solid rgba(178,90,51,0.3);
+  margin: 3px;
+}
+
+.card {
+  background: rgba(255,255,255,0.85);
+  border: 1px solid rgba(229,231,235,0.9);
+  border-radius: 16px;
+  padding: 18px 22px;
+  box-shadow: 0 6px 20px rgba(17,24,39,0.07);
+}
+
+.stat-card {
+  background: rgba(255,255,255,0.85);
+  border: 1px solid rgba(229,231,235,0.9);
+  border-radius: 12px;
+  padding: 12px 18px;
+  box-shadow: 0 4px 12px rgba(17,24,39,0.06);
+  text-align: center;
+}
+
+code {
+  background: rgba(178,90,51,0.08) !important;
+  color: #b25a33 !important;
+  border-radius: 6px;
+  padding: 1px 6px;
+}
+
+.slidev-code {
+  background: rgba(31,41,51,0.94) !important;
+  border-radius: 12px !important;
+}
+
+table {
+  width: 100%;
+}
+
+td, th {
+  padding: 6px 12px !important;
+}
+
+th {
+  color: #b25a33 !important;
+  border-bottom: 2px solid rgba(178,90,51,0.2) !important;
+}
