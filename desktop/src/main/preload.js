@@ -4,8 +4,14 @@ const { contextBridge, ipcRenderer } = require('electron')
 contextBridge.exposeInMainWorld('closechatLan', {
   hostStart: (args) => ipcRenderer.invoke('lan:hostStart', args),
   hostCreateRoom: (args) => ipcRenderer.invoke('lan:hostCreateRoom', args),
+  hostGetRooms: () => ipcRenderer.invoke('lan:hostGetRooms'),
   clientJoin: (args) => ipcRenderer.invoke('lan:clientJoin', args),
   clientSendMessage: (args) => ipcRenderer.invoke('lan:clientSendMessage', args),
+  signLocalToken: (args) => ipcRenderer.invoke('lan:signLocalToken', args),
+  clientLeave: () => ipcRenderer.invoke('lan:clientLeave'),
+  hostDeleteRoom: (args) => ipcRenderer.invoke('lan:hostDeleteRoom', args),
+  getLocalIP: () => ipcRenderer.invoke('lan:getLocalIP'),
+  discoverAndListRooms: (args) => ipcRenderer.invoke('lan:discoverAndListRooms', args),
 
   onMessage: (cb) => {
     ipcRenderer.removeAllListeners('lan:message')

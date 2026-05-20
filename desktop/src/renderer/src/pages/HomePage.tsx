@@ -1,9 +1,9 @@
 import { Box, Button, Stack, Typography } from '@mui/material'
 import ChatBubbles from '../components/ChatBubbles'
 
-type Route = 'home' | 'about' | 'login' | 'signup'
+export type Route = 'home' | 'about' | 'login' | 'signup' | 'discover' | 'create-room' | 'room-list' | 'chat'
 
-export type NavigateFn = (route: Route) => void
+export type NavigateFn = (route: Route, data?: unknown) => void
 
 type Props = {
   navigate: NavigateFn

@@ -16,3 +16,6 @@ dist/
 # Secrets (JWT, crash dumps, etc.)
 secrets/
 *.pem
+
+# Claude
+.claude/

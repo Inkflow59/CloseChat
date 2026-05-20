@@ -30,3 +30,9 @@ CREATE INDEX IF NOT EXISTS idx_crash_reports_created_at
 
 CREATE INDEX IF NOT EXISTS idx_crash_reports_user_id
   ON crash_reports (user_id);
+
+-- Comptes de test (mot de passe : test1234)
+INSERT INTO users (email, username, password_hash) VALUES
+  ('alice@closechat.local', 'Alice',  '$2b$12$0riPxulKuNCeOZPPcWoFzOdjq8KXI3rfGp.AcMxwKomW5xymnVU8O'),
+  ('bob@closechat.local',   'Bob',    '$2b$12$0riPxulKuNCeOZPPcWoFzOdjq8KXI3rfGp.AcMxwKomW5xymnVU8O')
+ON CONFLICT DO NOTHING;

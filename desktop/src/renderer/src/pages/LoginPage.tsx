@@ -1,3 +1,4 @@
+import { useState } from 'react'
 import { Box, Button, Stack, TextField, Typography } from '@mui/material'
 import type { NavigateFn } from './HomePage'
 
@@ -5,7 +6,58 @@ type Props = {
   navigate: NavigateFn
 }
 
+const fieldSx = {
+  '& .MuiOutlinedInput-root': {
+    height: 42,
+    backgroundColor: '#ffffff',
+    fontFamily: '"Caveat", system-ui, sans-serif',
+    fontSize: 22,
+    borderRadius: '10px',
+    '& fieldset': { borderColor: '#d1d5db', borderWidth: '1px' },
+    '&:hover fieldset': { borderColor: '#b25a33' },
+    '&.Mui-focused fieldset': { borderColor: '#b25a33' },
+  },
+  '& .MuiOutlinedInput-input': { px: 1.4, py: 0 },
+}
+
 export default function LoginPage({ navigate }: Props) {
+  const [identifier, setIdentifier] = useState('')
+  const [password, setPassword] = useState('')
+  const [loading, setLoading] = useState(false)
+  const [error, setError] = useState('')
+
+  async function handleLogin() {
+    const id = identifier.trim()
+    if (!id) { setError('Entrez votre pseudo ou e-mail.'); return }
+    setLoading(true)
+    setError('')
+
+    try {
+      // Tentative via l'API (si disponible)
+      const res = await fetch('http://localhost:6767/auth/login', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ identifier: id, password }),
+      })
+      if (res.ok) {
+        const data = await res.json()
+        navigate('discover', { username: data.user?.username ?? id, token: data.token })
+        return
+      }
+    } catch (_) {
+      // API indisponible → token local
+    }
+
+    try {
+      const { token } = await window.closechatLan.signLocalToken({ username: id })
+      navigate('discover', { username: id, token })
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Impossible de générer un token.')
+    } finally {
+      setLoading(false)
+    }
+  }
+
   return (
     <Box
       sx={{
@@ -38,80 +90,36 @@ export default function LoginPage({ navigate }: Props) {
         }}
       >
         <Typography
-          sx={{
-            fontFamily: '"Caveat", system-ui, sans-serif',
-            fontSize: 30,
-            color: '#374151',
-            lineHeight: 1.2,
-          }}
+          sx={{ fontFamily: '"Caveat", system-ui, sans-serif', fontSize: 30, color: '#374151', lineHeight: 1.2 }}
         >
           Bienvenue sur
         </Typography>
 
         <Typography
           component="h1"
-          sx={{
-            fontFamily: '"Caveat", system-ui, sans-serif',
-            fontSize: { xs: 56, sm: 64 },
-            color: '#1f2933',
-            lineHeight: 1.1,
-            mb: 0.5,
-          }}
+          sx={{ fontFamily: '"Caveat", system-ui, sans-serif', fontSize: { xs: 56, sm: 64 }, color: '#1f2933', lineHeight: 1.1, mb: 0.5 }}
         >
           CloseChat
         </Typography>
 
         <Stack spacing={0.6} sx={{ width: '100%' }}>
-          <Typography
-            sx={{
-              fontFamily: '"Caveat", system-ui, sans-serif',
-              fontSize: 24,
-              color: '#374151',
-              pl: 0.5,
-            }}
-          >
+          <Typography sx={{ fontFamily: '"Caveat", system-ui, sans-serif', fontSize: 24, color: '#374151', pl: 0.5 }}>
             Pseudo ou mail :
           </Typography>
           <TextField
             size="small"
             fullWidth
             variant="outlined"
+            value={identifier}
+            onChange={(e) => setIdentifier(e.target.value)}
+            onKeyDown={(e) => e.key === 'Enter' && handleLogin()}
             inputProps={{ 'aria-label': 'Pseudo ou mail' }}
-            sx={{
-              '& .MuiOutlinedInput-root': {
-                height: 42,
-                backgroundColor: '#ffffff',
-                fontFamily: '"Caveat", system-ui, sans-serif',
-                fontSize: 22,
-                borderRadius: '10px',
-                '& fieldset': {
-                  borderColor: '#d1d5db',
-                  borderWidth: '1px',
-                },
-                '&:hover fieldset': {
-                  borderColor: '#b25a33',
-                },
-                '&.Mui-focused fieldset': {
-                  borderColor: '#b25a33',
-                },
-              },
-              '& .MuiOutlinedInput-input': {
-                px: 1.4,
-                py: 0,
-              },
-            }}
+            sx={fieldSx}
           />
         </Stack>
 
         <Stack spacing={0.6} sx={{ width: '100%' }}>
-          <Typography
-            sx={{
-              fontFamily: '"Caveat", system-ui, sans-serif',
-              fontSize: 24,
-              color: '#374151',
-              pl: 0.5,
-            }}
-          >
+          <Typography sx={{ fontFamily: '"Caveat", system-ui, sans-serif', fontSize: 24, color: '#374151', pl: 0.5 }}>
             Mot de passe :
           </Typography>
           <TextField
@@ -119,37 +127,25 @@ export default function LoginPage({ navigate }: Props) {
             type="password"
             fullWidth
             variant="outlined"
+            value={password}
+            onChange={(e) => setPassword(e.target.value)}
+            onKeyDown={(e) => e.key === 'Enter' && handleLogin()}
             inputProps={{ 'aria-label': 'Mot de passe' }}
-            sx={{
-              '& .MuiOutlinedInput-root': {
-                height: 42,
-                backgroundColor: '#ffffff',
-                fontFamily: '"Caveat", system-ui, sans-serif',
-                fontSize: 22,
-                borderRadius: '10px',
-                '& fieldset': {
-                  borderColor: '#d1d5db',
-                  borderWidth: '1px',
-                },
-                '&:hover fieldset': {
-                  borderColor: '#b25a33',
-                },
-                '&.Mui-focused fieldset': {
-                  borderColor: '#b25a33',
-                },
-              },
-              '& .MuiOutlinedInput-input': {
-                px: 1.4,
-                py: 0,
-              },
-            }}
+            sx={fieldSx}
           />
         </Stack>
+
+        {error && (
+          <Typography sx={{ fontFamily: '"Caveat", system-ui, sans-serif', fontSize: 18, color: '#b91c1c' }}>
+            {error}
+          </Typography>
+        )}
 
         <Stack direction="row" spacing={1.5} sx={{ pt: 0.8 }}>
           <Button
             variant="contained"
-            onClick={() => navigate('home')}
+            disabled={loading}
+            onClick={handleLogin}
             sx={{
               py: 0.8,
               px: 3.2,
@@ -160,13 +156,10 @@ export default function LoginPage({ navigate }: Props) {
               fontFamily: '"Caveat", system-ui, sans-serif',
               fontSize: 25,
               textTransform: 'none',
-              '&:hover': {
-                backgroundColor: '#a24f2c',
-                boxShadow: '0 6px 14px rgba(148, 64, 28, 0.38)',
-              },
+              '&:hover': { backgroundColor: '#a24f2c', boxShadow: '0 6px 14px rgba(148, 64, 28, 0.38)' },
             }}
           >
-            Se connecter
+            {loading ? 'Connexion…' : 'Se connecter'}
           </Button>
 
           <Button
@@ -182,10 +175,7 @@ export default function LoginPage({ navigate }: Props) {
               fontFamily: '"Caveat", system-ui, sans-serif',
               fontSize: 25,
               textTransform: 'none',
-              '&:hover': {
-                borderColor: '#b8bec7',
-                backgroundColor: '#f9fafb',
-              },
+              '&:hover': { borderColor: '#b8bec7', backgroundColor: '#f9fafb' },
             }}
           >
             S&apos;inscrire

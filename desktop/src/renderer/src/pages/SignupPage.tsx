@@ -151,7 +151,7 @@ export default function SignupPage({ navigate }: Props) {
         <Stack direction="row" spacing={1.5} sx={{ pt: 1.1 }}>
           <Button
             variant="contained"
-            onClick={() => navigate('home')}
+            onClick={() => navigate('discover')}
             sx={{
               py: 0.8,
               px: 4.2,

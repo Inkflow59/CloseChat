@@ -18,6 +18,18 @@ const jwtPublicKey =
     }
   })()
 
+const jwtPrivateKey =
+  process.env.JWT_PRIVATE_KEY ||
+  (() => {
+    try {
+      const jwtPrivPath = path.join(__dirname, '..', '..', '..', 'secrets', 'jwt_private.pem')
+      if (!fs.existsSync(jwtPrivPath)) return ''
+      return fs.readFileSync(jwtPrivPath, 'utf8')
+    } catch (_) {
+      return ''
+    }
+  })()
+
 let mainWindow = null
 let lanServer = null
 let lanRooms = new Map() // roomName -> { passwordHashHex: string|null, clients: Set<WebSocket>, createdAt }
@@ -180,7 +192,10 @@ ipcMain.handle('lan:hostStart', async (event, args = {}) => {
           ws.__lanRoom = room
           ws.__lanUser = { userId: payload.sub, username }
 
-          ws.send(JSON.stringify({ type: 'join_room_ack', ok: true, room }))
+          const existingMembers = [...roomState.clients]
+            .filter((c) => c.__lanUser)
+            .map((c) => c.__lanUser.username)
+          ws.send(JSON.stringify({ type: 'join_room_ack', ok: true, room, members: existingMembers }))
 
           broadcastToRoom(room, {
             type: 'presence',
@@ -225,6 +240,22 @@ ipcMain.handle('lan:hostStart', async (event, args = {}) => {
         return
       }
 
+      if (type === 'list_rooms') {
+        const rooms = []
+        for (const [roomName, roomState] of lanRooms.entries()) {
+          const members = [...roomState.clients]
+            .filter((c) => c.__lanUser)
+            .map((c) => c.__lanUser.username)
+          rooms.push({
+            name: roomName,
+            protected: Boolean(roomState.passwordHashHex),
+            members,
+          })
+        }
+        ws.send(JSON.stringify({ type: 'list_rooms_ack', rooms }))
+        return
+      }
+
       ws.send(JSON.stringify({ type: 'error', error: `Unknown type: ${type}` }))
     })
 
@@ -234,6 +265,10 @@ ipcMain.handle('lan:hostStart', async (event, args = {}) => {
       const roomState = lanRooms.get(room)
       if (!roomState) return
       roomState.clients.delete(ws)
+      if (roomState.clients.size === 0) {
+        lanRooms.delete(room)
+        return
+      }
       broadcastToRoom(room, {
         type: 'presence',
         room,
@@ -335,6 +370,135 @@ ipcMain.handle('lan:clientSendMessage', async (event, args = {}) => {
   )
 
   return { ok: true }
+})
+
+ipcMain.handle('lan:signLocalToken', async (event, args = {}) => {
+  const jwt = require('jsonwebtoken')
+  const { username } = args
+  if (!jwtPrivateKey) throw new Error('JWT_PRIVATE_KEY manquant dans secrets/jwt_private.pem')
+  const token = jwt.sign(
+    { sub: username, username },
+    jwtPrivateKey,
+    { algorithm: 'RS256', expiresIn: '24h' }
+  )
+  return { token }
+})
+
+ipcMain.handle('lan:clientLeave', async () => {
+  if (lanClientSocket) {
+    try { lanClientSocket.close() } catch (_) {}
+    lanClientSocket = null
+  }
+  lanClientRoom = null
+  return { ok: true }
+})
+
+ipcMain.handle('lan:hostDeleteRoom', async (event, args = {}) => {
+  const { room } = args
+  if (room) lanRooms.delete(room)
+  return { ok: true }
+})
+
+ipcMain.handle('lan:getLocalIP', async () => {
+  const os = require('os')
+  const interfaces = os.networkInterfaces()
+  for (const ifaces of Object.values(interfaces)) {
+    for (const iface of ifaces) {
+      if (iface.family === 'IPv4' && !iface.internal) {
+        return { ip: iface.address }
+      }
+    }
+  }
+  return { ip: '127.0.0.1' }
+})
+
+ipcMain.handle('lan:hostGetRooms', async () => {
+  const rooms = []
+  for (const [roomName, roomState] of lanRooms.entries()) {
+    const members = [...roomState.clients]
+      .filter((c) => c.__lanUser)
+      .map((c) => c.__lanUser.username)
+    rooms.push({
+      name: roomName,
+      protected: Boolean(roomState.passwordHashHex),
+      members,
+    })
+  }
+  return { rooms }
+})
+
+ipcMain.handle('lan:discoverAndListRooms', async (event, args = {}) => {
+  const net = require('net')
+  const os = require('os')
+  const wsLib = require('ws')
+  const { port: searchPort = 5050, connectTimeoutMs = 300 } = args
+
+  let localIP = '127.0.0.1'
+  const interfaces = os.networkInterfaces()
+  outer: for (const ifaces of Object.values(interfaces)) {
+    for (const iface of ifaces) {
+      if (iface.family === 'IPv4' && !iface.internal) {
+        localIP = iface.address
+        break outer
+      }
+    }
+  }
+
+  const [a, b, c] = localIP.split('.')
+  const base = `${a}.${b}.${c}`
+
+  function isPortOpen(host) {
+    return new Promise((resolve) => {
+      const socket = new net.Socket()
+      socket.setTimeout(connectTimeoutMs)
+      socket.once('connect', () => { socket.destroy(); resolve(true) })
+      socket.once('timeout', () => { socket.destroy(); resolve(false) })
+      socket.once('error', () => resolve(false))
+      socket.connect(searchPort, host)
+    })
+  }
+
+  function getRoomsFromHost(host) {
+    return new Promise((resolve) => {
+      let done = false
+      const ws = new wsLib.WebSocket(`ws://${host}:${searchPort}`)
+      const timer = setTimeout(() => {
+        if (!done) { done = true; try { ws.terminate() } catch (_) {} resolve([]) }
+      }, 2000)
+      ws.once('open', () => ws.send(JSON.stringify({ type: 'list_rooms' })))
+      ws.once('message', (data) => {
+        if (done) return
+        clearTimeout(timer)
+        done = true
+        try {
+          const msg = JSON.parse(data.toString())
+          ws.close()
+          if (msg.type === 'list_rooms_ack') {
+            resolve(msg.rooms.map((r) => ({ ...r, host, port: searchPort })))
+          } else resolve([])
+        } catch (_) { resolve([]) }
+      })
+      ws.once('error', () => {
+        if (!done) { done = true; clearTimeout(timer); resolve([]) }
+      })
+    })
+  }
+
+  const hosts = Array.from({ length: 254 }, (_, i) => `${base}.${i + 1}`)
+  const BATCH = 50
+  const openHosts = []
+
+  for (let i = 0; i < hosts.length; i += BATCH) {
+    const batch = hosts.slice(i, i + BATCH)
+    const results = await Promise.all(
+      batch.map((h) => isPortOpen(h).then((open) => ({ h, open })))
+    )
+    openHosts.push(...results.filter((r) => r.open).map((r) => r.h))
+  }
+
+  const allRooms = (await Promise.all(openHosts.map((host) => getRoomsFromHost(host)))).flat()
+
+  return { rooms: allRooms, localIP }
 })
 
 app.on('window-all-closed', function () {
