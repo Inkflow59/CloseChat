@@ -1,4 +1,4 @@
-const { app, BrowserWindow, crashReporter, ipcMain } = require('electron')
+const { app, BrowserWindow, crashReporter, ipcMain, Notification } = require('electron')
 const path = require('path')
 
 const enableCrashReporting = process.env.CRASH_REPORTING_ENABLED !== 'false'
@@ -429,6 +429,27 @@ ipcMain.handle('lan:clientSendMessage', async (event, args = {}) => {
   )
 
   return { ok: true }
+})
+
+ipcMain.handle('app:notify', async (event, args = {}) => {
+  if (!mainWindow) return
+  if (mainWindow.isFocused() && !mainWindow.isMinimized()) return
+  if (!Notification.isSupported()) return
+
+  const { title, body } = args
+  if (!title || !body) return
+
+  const notif = new Notification({
+    title: String(title),
+    body: String(body).length > 120 ? String(body).slice(0, 117) + '…' : String(body),
+  })
+  notif.once('click', () => {
+    if (mainWindow) {
+      if (mainWindow.isMinimized()) mainWindow.restore()
+      mainWindow.focus()
+    }
+  })
+  notif.show()
 })
 
 ipcMain.handle('crash:reportRenderer', async (event, args = {}) => {

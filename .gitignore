@@ -19,3 +19,6 @@ secrets/
 
 # Claude
 .claude/
+
+# Critères d'évaluation
+critere.txt

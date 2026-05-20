@@ -52,6 +52,10 @@ export default function ChatPage({ room, username, token, localIP, isHost, initi
   const [currentRoom, setCurrentRoom] = useState<Room>(room)
   const bottomRef = useRef<HTMLDivElement>(null)
 
+  function notify(title: string, body: string) {
+    window.closechatLan.notify({ title, body }).catch(() => {})
+  }
+
   useEffect(() => {
     window.closechatLan.onMessage((raw) => {
       const msg = raw as Record<string, unknown>
@@ -66,20 +70,32 @@ export default function ChatPage({ room, username, token, localIP, isHost, initi
             text: msg.message as string,
           },
         ])
+        if (from.username !== username) {
+          notify(from.username, msg.message as string)
+        }
       }
 
       if (msg.type === 'presence') {
         const user = (msg.user as Record<string, string>) ?? {}
         if (msg.action === 'join') {
           setMembers((prev) => [...new Set([...prev, user.username])])
+          if (user.username !== username) {
+            notify('CloseChat — ' + currentRoom.name, `${user.username} a rejoint le salon`)
+          }
         } else if (msg.action === 'leave') {
           setMembers((prev) => prev.filter((m) => m !== user.username))
+          if (user.username !== username) {
+            notify('CloseChat — ' + currentRoom.name, `${user.username} a quitté le salon`)
+          }
         }
       }
 
       if (msg.type === 'user_renamed') {
         const { oldUsername, newUsername } = msg as Record<string, string>
         setMembers((prev) => prev.map((m) => (m === oldUsername ? newUsername : m)))
+        if (oldUsername !== username) {
+          notify('CloseChat', `${oldUsername} s'appelle maintenant ${newUsername}`)
+        }
       }
     })
 
