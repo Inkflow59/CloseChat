@@ -173,10 +173,12 @@ function setupTray() {
 
 function createWindow({ devUrl, isDev }) {
   const iconPath = getResourcePath('icon.ico')
+  Menu.setApplicationMenu(null)
   const win = new BrowserWindow({
     width: 1100,
     height: 720,
     icon: fs.existsSync(iconPath) ? iconPath : undefined,
+    autoHideMenuBar: true,
     webPreferences: {
       preload: path.join(__dirname, 'preload.js'),
       nodeIntegration: false,
